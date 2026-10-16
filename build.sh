@@ -77,7 +77,7 @@ if [[ -z "$IMAGE" ]]; then
 fi
 if [[ -z "$IMAGE" || ! -s "$IMAGE" ]]; then
   echo "ERROR: expected *-generic-squashfs-combined.img.gz was not generated." >&2
-  find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\\n' >&2
+  find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\n' >&2
   exit 1
 fi
 
@@ -87,7 +87,7 @@ fi
 BUNDLE="$WORK/package-bundle"
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/packages"
-find "$IBDIR/packages" -maxdepth 1 -type f -name '*.apk' -exec cp -f {} "$BUNDLE/packages/" \\;
+find "$IBDIR/packages" -maxdepth 1 -type f -name '*.apk' -exec cp -f {} "$BUNDLE/packages/" \;
 cp "$ROOT/packages.txt" "$BUNDLE/packages.txt"
 make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES" > "$BUNDLE/imagebuilder-manifest.txt"
 cat > "$BUNDLE/README.txt" <<'EOF'
@@ -134,10 +134,10 @@ cat "$WORK/install-dualweb.run.header" "$OUT/dualweb-packages.tar.gz" > "$OUT/in
 chmod 0755 "$OUT/install-dualweb.run"
 
 # Retain only the firmware image and the two requested plugin installer artifacts.
-find "$OUT" -maxdepth 1 -type f \\
-  ! -name '*-generic-squashfs-combined.img.gz' \\
-  ! -name 'dualweb-packages.tar.gz' \\
-  ! -name 'install-dualweb.run' \\
+find "$OUT" -maxdepth 1 -type f \
+  ! -name '*-generic-squashfs-combined.img.gz' \
+  ! -name 'dualweb-packages.tar.gz' \
+  ! -name 'install-dualweb.run' \
   -delete
 echo "Build complete. Final artifacts:"
-find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\\n'
+find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\n'
