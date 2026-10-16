@@ -1,4 +1,5 @@
 name: Build Dual Web
+
 on:
   workflow_dispatch:
     inputs:
@@ -6,8 +7,10 @@ on:
         description: 'ImmortalWrt stable release'
         required: true
         default: '25.12.2'
+
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - '.github/workflows/**'
       - 'overlay/**'
@@ -15,24 +18,132 @@ on:
       - 'build.sh'
       - 'packages.txt'
       - 'README.md'
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+
     env:
       RELEASE: ${{ inputs.release || '25.12.2' }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
+
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y zstd gzip xz-utils curl wget tar jq golang-go
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            zstd \
+            gzip \
+            xz-utils \
+            curl \
+            wget \
+            tar \
+            jq \
+            golang-go
+
+      - name: Check project files
+        run: |
+          set -eu
+
+          echo "========== Project directory =========="
+          pwd
+          ls -la
+
+          echo "========== Check build.sh =========="
+          test -f build.sh || {
+            echo "::error::build.sh not found"
+            exit 1
+          }
+
+          test -s build.sh || {
+            echo "::error::build.sh is empty"
+            exit 1
+          }
+
+          echo "========== Check packages.txt =========="
+          test -f packages.txt || {
+            echo "::error::packages.txt not found"
+            exit 1
+          }
+
+          echo "========== Check overlay =========="
+          test -d overlay || {
+            echo "::error::overlay directory not found"
+            exit 1
+          }
+
+          echo "========== Check source =========="
+          test -d src || {
+            echo "::error::src directory not found"
+            exit 1
+          }
+
+          echo "========== Release =========="
+          echo "$RELEASE"
+
       - name: Build ImageBuilder image
-        run: ./build.sh
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          chmod +x ./build.sh
+
+          echo "========== Validate shell syntax =========="
+          bash -n ./build.sh
+
+          echo "========== Start firmware build =========="
+          bash ./build.sh
+
+      - name: Check firmware output
+        if: success()
+        run: |
+          set -eu
+
+          echo "========== Output directory =========="
+
+          if [ ! -d output ]; then
+            echo "::error::output directory does not exist"
+            echo "Please check whether build.sh exports firmware to output/"
+            exit 1
+          fi
+
+          find output -maxdepth 2 -type f -printf '%p (%s bytes)\n'
+
+          if ! find output -maxdepth 2 -type f \
+            \( -name '*.img.gz' \
+            -o -name '*.img.gz.sha256sum' \
+            -o -name '*.img' \
+            -o -name '*.img.gz' \
+            -o -name '*.vdi' \
+            -o -name '*.vmdk' \
+            -o -name '*.qcow2' \
+            -o -name '*.combined*' \
+            -o -name '*.tar' \
+            -o -name '*.bin' \) \
+            -print -quit | grep -q .; then
+            echo "::error::No recognized firmware image found in output/"
+            exit 1
+          fi
+
       - name: Upload firmware
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: immortalwrt-x86-64-dualweb
-          path: output/*
+          path: output/**
           if-no-files-found: error
           retention-days: 30
+
+      - name: Print failure diagnostics
+        if: failure()
+        run: |
+          echo "Build failed."
+          echo "Please inspect the first failed step in the Actions log."
+          echo "Expected build script: ./build.sh"
+          echo "Expected firmware directory: output/"
