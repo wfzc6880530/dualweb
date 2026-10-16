@@ -25,7 +25,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     env:
       RELEASE: ${{ inputs.release || '25.12.2' }}
@@ -36,6 +36,7 @@ jobs:
 
       - name: Install build dependencies
         run: |
+          set -eu
           sudo apt-get update
           sudo apt-get install -y \
             zstd \
@@ -45,89 +46,65 @@ jobs:
             wget \
             tar \
             jq \
-            golang-go
+            golang-go \
+            qemu-utils
 
-      - name: Check project files
+      - name: Verify build tools
         run: |
           set -eu
 
-          echo "========== Project directory =========="
-          pwd
-          ls -la
+          echo "========== qemu-img =========="
+          command -v qemu-img
+          qemu-img --version
 
-          echo "========== Check build.sh =========="
-          test -f build.sh || {
-            echo "::error::build.sh not found"
-            exit 1
-          }
+          echo "========== Go =========="
+          go version
 
-          test -s build.sh || {
-            echo "::error::build.sh is empty"
-            exit 1
-          }
+          echo "========== Build script =========="
+          test -s ./build.sh
+          chmod +x ./build.sh
+          bash -n ./build.sh
 
-          echo "========== Check packages.txt =========="
-          test -f packages.txt || {
-            echo "::error::packages.txt not found"
-            exit 1
-          }
+          echo "========== Project files =========="
+          test -f packages.txt
+          test -d overlay
+          test -d src
 
-          echo "========== Check overlay =========="
-          test -d overlay || {
-            echo "::error::overlay directory not found"
-            exit 1
-          }
-
-          echo "========== Check source =========="
-          test -d src || {
-            echo "::error::src directory not found"
-            exit 1
-          }
-
-          echo "========== Release =========="
-          echo "$RELEASE"
+          echo "ImmortalWrt release: $RELEASE"
 
       - name: Build ImageBuilder image
         shell: bash
         run: |
           set -Eeuo pipefail
-
-          chmod +x ./build.sh
-
-          echo "========== Validate shell syntax =========="
-          bash -n ./build.sh
-
-          echo "========== Start firmware build =========="
           bash ./build.sh
 
       - name: Check firmware output
         if: success()
+        shell: bash
         run: |
-          set -eu
-
-          echo "========== Output directory =========="
+          set -Eeuo pipefail
 
           if [ ! -d output ]; then
             echo "::error::output directory does not exist"
-            echo "Please check whether build.sh exports firmware to output/"
+            echo "Check the output copy step in build.sh"
             exit 1
           fi
 
-          find output -maxdepth 2 -type f -printf '%p (%s bytes)\n'
+          echo "========== Firmware files =========="
+          find output -maxdepth 2 -type f \
+            -printf '%p (%s bytes)\n'
 
           if ! find output -maxdepth 2 -type f \
-            \( -name '*.img.gz' \
-            -o -name '*.img.gz.sha256sum' \
-            -o -name '*.img' \
+            \( -name '*.img' \
             -o -name '*.img.gz' \
+            -o -name '*.qcow2' \
             -o -name '*.vdi' \
             -o -name '*.vmdk' \
-            -o -name '*.qcow2' \
             -o -name '*.combined*' \
-            -o -name '*.tar' \
-            -o -name '*.bin' \) \
+            -o -name '*.bin' \
+            -o -name '*.vhdx' \) \
             -print -quit | grep -q .; then
-            echo "::error::No recognized firmware image found in output/"
+            echo "::error::No recognized firmware image found"
             exit 1
           fi
 
@@ -140,10 +117,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Print failure diagnostics
+      - name: Failure diagnostics
         if: failure()
+        shell: bash
         run: |
-          echo "Build failed."
-          echo "Please inspect the first failed step in the Actions log."
-          echo "Expected build script: ./build.sh"
-          echo "Expected firmware directory: output/"
+          echo "Build failed. Inspect the first failed step."
+          echo "Check ImageBuilder logs and output paths."
