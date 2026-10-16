@@ -1,0 +1,43 @@
+#!/bin/sh
+# Install Nikki (which provides/depends on the Mihomo core) after networking is up.
+LOG=/tmp/dualweb-firstboot.log
+MARK=/etc/dualweb/.nikki-installed
+FEED_SCRIPT=/tmp/dualweb-nikki-install.sh
+mkdir -p /etc/dualweb
+log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
+
+while :; do
+    if [ -x /usr/bin/apk ] && apk list --installed 2>/dev/null | grep -q '^luci-app-nikki-'; then
+        if command -v mihomo >/dev/null 2>&1 || [ -x /usr/bin/mihomo ]; then
+            touch "$MARK"
+            log "Nikki and Mihomo already installed; done."
+            exit 0
+        fi
+    fi
+
+    log "Waiting for internet access to install Nikki/Mihomo."
+    if ! wget -q -T 10 -O /dev/null https://nikkinikki.pages.dev/; then
+        log "Nikki feed is not reachable; retrying in 60 seconds."
+        sleep 60
+        continue
+    fi
+
+    if ! wget -q -T 30 -O "$FEED_SCRIPT" https://github.com/nikkinikki-org/OpenWrt-nikki/raw/refs/heads/main/install.sh || [ ! -s "$FEED_SCRIPT" ]; then
+        log "Failed to download official Nikki installer; retrying in 120 seconds."
+        sleep 120
+        continue
+    fi
+
+    log "Running official Nikki installer."
+    ash "$FEED_SCRIPT" >> "$LOG" 2>&1 || true
+    if apk list --installed 2>/dev/null | grep -q '^luci-app-nikki-' && (command -v mihomo >/dev/null 2>&1 || [ -x /usr/bin/mihomo ]); then
+        touch "$MARK"
+        log "Verified Nikki LuCI app and Mihomo core installed successfully."
+        /etc/init.d/nginx restart >/dev/null 2>&1 || true
+        /etc/init.d/uhttpd restart >/dev/null 2>&1 || true
+        exit 0
+    fi
+
+    log "Install attempt did not install both Nikki and Mihomo. Full output above; retrying in 300 seconds."
+    sleep 300
+done
