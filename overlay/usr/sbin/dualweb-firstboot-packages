@@ -7,14 +7,6 @@ mkdir -p /etc/dualweb
 log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
 
 while :; do
-    if [ -x /usr/bin/apk ] && apk list --installed 2>/dev/null | grep -q '^luci-app-nikki-'; then
-        if command -v mihomo >/dev/null 2>&1 || [ -x /usr/bin/mihomo ]; then
-            touch "$MARK"
-            log "Nikki and Mihomo already installed; done."
-            exit 0
-        fi
-    fi
-
     # Preserve the previous optional Vantage theme installation.
     if [ ! -f /etc/dualweb/.vantage-installed ]; then
         mkdir -p /etc/apk/repositories.d /etc/apk/keys
@@ -36,6 +28,14 @@ while :; do
             fi
         else
             log "Could not download Vantage signing key; will retry later."
+        fi
+    fi
+
+    if [ -x /usr/bin/apk ] && apk list --installed 2>/dev/null | grep -q '^luci-app-nikki-'; then
+        if command -v mihomo >/dev/null 2>&1 || [ -x /usr/bin/mihomo ]; then
+            touch "$MARK"
+            log "Nikki and Mihomo already installed; done."
+            exit 0
         fi
     fi
 
