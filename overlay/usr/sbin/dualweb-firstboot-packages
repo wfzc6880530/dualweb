@@ -15,6 +15,30 @@ while :; do
         fi
     fi
 
+    # Preserve the previous optional Vantage theme installation.
+    if [ ! -f /etc/dualweb/.vantage-installed ]; then
+        mkdir -p /etc/apk/repositories.d /etc/apk/keys
+        if wget -q -T 20 -O /etc/apk/keys/vantage-signing.pem https://anothadev.github.io/luci-theme-vantage/vantage-signing.pem; then
+            SUM="$(sha256sum /etc/apk/keys/vantage-signing.pem | awk '{print $1}')"
+            if [ "$SUM" = "c8a6c83eeb49ca2407932fb5e95785776128cef87db75ebaea0fe4171eee2157" ]; then
+                grep -q 'anothadev.github.io/luci-theme-vantage/25.12/packages.adb' /etc/apk/repositories.d/customfeeds.list 2>/dev/null || echo 'https://anothadev.github.io/luci-theme-vantage/25.12/packages.adb' >> /etc/apk/repositories.d/customfeeds.list
+                if apk update >> "$LOG" 2>&1 && apk add luci-theme-vantage luci-app-vantage >> "$LOG" 2>&1; then
+                    uci -q set luci.main.mediaurlbase='/luci-static/vantage'
+                    uci -q commit luci
+                    touch /etc/dualweb/.vantage-installed
+                    log "Vantage installed."
+                else
+                    log "Vantage install failed; will retry later."
+                fi
+            else
+                log "Vantage signing key checksum mismatch; refusing installation."
+                rm -f /etc/apk/keys/vantage-signing.pem
+            fi
+        else
+            log "Could not download Vantage signing key; will retry later."
+        fi
+    fi
+
     log "Waiting for internet access to install Nikki/Mihomo."
     if ! wget -q -T 10 -O /dev/null https://nikkinikki.pages.dev/; then
         log "Nikki feed is not reachable; retrying in 60 seconds."
