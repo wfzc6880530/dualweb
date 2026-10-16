@@ -114,8 +114,8 @@ jobs:
 
           IMAGE="$(find output -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
           test -n "$IMAGE" || { echo "::error::Missing *-generic-squashfs-combined.img.gz"; exit 1; }
-          test -s output/dualweb-packages.tar.gz || { echo "::error::Missing plugin bundle"; exit 1; }
-          test -s output/install-dualweb.run || { echo "::error::Missing .run installer"; exit 1; }
+          test -s output/dualweb-all-plugins.tar.gz || { echo "::error::Missing plugin bundle"; exit 1; }
+          test -s output/dualweb-all-plugins.run || { echo "::error::Missing .run installer"; exit 1; }
 
           echo "========== Final release files =========="
           find output -maxdepth 1 -type f -printf '%f (%s bytes)\n'
@@ -129,8 +129,8 @@ jobs:
           name: immortalwrt-x86-64-dualweb
           path: |
             output/*-generic-squashfs-combined.img.gz
-            output/dualweb-packages.tar.gz
-            output/install-dualweb.run
+            output/dualweb-all-plugins.tar.gz
+            output/dualweb-all-plugins.run
           if-no-files-found: error
           retention-days: 30
 
