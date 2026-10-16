@@ -6,6 +6,9 @@ TARGET="x86/64"
 BASE="https://downloads.immortalwrt.org/releases/${RELEASE}/targets/${TARGET}"
 WORK="${ROOT}/work"
 OUT="${ROOT}/output"
+NIKKI_VERSION="${NIKKI_VERSION:-v1.26.2}"
+NIKKI_ARCHIVE="nikki_x86_64-openwrt-25.12.tar.gz"
+NIKKI_URL="https://github.com/nikkinikki-org/OpenWrt-nikki/releases/download/${NIKKI_VERSION}/${NIKKI_ARCHIVE}"
 mkdir -p "$WORK" "$OUT"
 IB="immortalwrt-imagebuilder-${RELEASE}-x86-64.Linux-x86_64.tar.zst"
 URL="${BASE}/${IB}"
@@ -23,7 +26,7 @@ rm -rf "$WORK/imagebuilder"
 mkdir -p "$WORK/imagebuilder"
 tar --zstd -xf "$WORK/$IB" -C "$WORK/imagebuilder" --strip-components=1
 IBDIR="$WORK/imagebuilder"
-mkdir -p "$ROOT/overlay/usr/sbin"
+
 if ! command -v go >/dev/null 2>&1; then
   echo "Go is required to compile the local API. Install Go 1.22+ and retry." >&2
   exit 1
@@ -37,9 +40,31 @@ chmod 0755 "$ROOT/overlay/etc/init.d/dualweb-api"
 chmod 0755 "$ROOT/overlay/etc/init.d/dualweb-firstboot"
 chmod 0755 "$ROOT/overlay/usr/sbin/dualweb-firstboot-packages"
 
+# Download Nikki's prebuilt APK packages for ImmortalWrt 25.12 and bake them into the image.
+# This is build-time only: the router does not need to reach GitHub on first boot.
+if [[ ! -s "$WORK/$NIKKI_ARCHIVE" ]]; then
+  echo "Downloading Nikki packages: $NIKKI_URL"
+  curl -fL --retry 5 --retry-delay 3 --connect-timeout 30 "$NIKKI_URL" -o "$WORK/$NIKKI_ARCHIVE"
+fi
+rm -rf "$WORK/nikki-packages"
+mkdir -p "$WORK/nikki-packages" "$IBDIR/packages"
+tar -xzf "$WORK/$NIKKI_ARCHIVE" -C "$WORK/nikki-packages"
+find "$WORK/nikki-packages" -type f -name '*.apk' -print
+find "$WORK/nikki-packages" -type f -name '*.apk' -exec cp -f {} "$IBDIR/packages/" \;
+for pkg in mihomo-meta nikki luci-app-nikki luci-i18n-nikki-zh-cn; do
+  if ! find "$IBDIR/packages" -maxdepth 1 -type f -name "${pkg}-*.apk" -print -quit | grep -q .; then
+    echo "ERROR: Nikki archive does not contain an APK for package: $pkg" >&2
+    echo "Archive layout may have changed; inspect $WORK/nikki-packages." >&2
+    exit 1
+  fi
+done
+
 mkdir -p "$IBDIR/files"
 cp -a "$ROOT/overlay/." "$IBDIR/files/"
 PACKAGES="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | xargs)"
+echo "========== Verify package manifest =========="
+make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
+echo "========== Build firmware =========="
 make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT"
 cp "$WORK/$IB" "$OUT/"
 cp "$WORK/sha256sums" "$OUT/official-sha256sums.txt" 2>/dev/null || true
