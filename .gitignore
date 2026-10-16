@@ -1,0 +1,8 @@
+work/
+output/
+*.img
+*.img.gz
+*.qcow2
+*.vdi
+*.vmdk
+*.vhdx
