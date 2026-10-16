@@ -34,6 +34,8 @@ chmod 0755 "$ROOT/overlay/usr/sbin/dualweb-api"
 # ImageBuilder copies file modes from the overlay; ensure init scripts are executable.
 chmod 0755 "$ROOT/overlay/etc/uci-defaults/99-dualweb"
 chmod 0755 "$ROOT/overlay/etc/init.d/dualweb-api"
+chmod 0755 "$ROOT/overlay/etc/init.d/dualweb-firstboot"
+chmod 0755 "$ROOT/overlay/usr/sbin/dualweb-firstboot-packages"
 
 mkdir -p "$IBDIR/files"
 cp -a "$ROOT/overlay/." "$IBDIR/files/"
