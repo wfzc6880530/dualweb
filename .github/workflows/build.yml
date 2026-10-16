@@ -35,8 +35,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install build dependencies
+        shell: bash
         run: |
-          set -eu
+          set -euo pipefail
+
           sudo apt-get update
           sudo apt-get install -y \
             zstd \
@@ -47,38 +49,43 @@ jobs:
             tar \
             jq \
             golang-go \
-            qemu-utils
+            qemu-utils \
+            genisoimage
 
-      - name: Verify build tools
+      - name: Verify build environment
+        shell: bash
         run: |
-          set -eu
+          set -euo pipefail
 
           echo "========== qemu-img =========="
           command -v qemu-img
           qemu-img --version
 
+          echo "========== mkisofs =========="
+          command -v mkisofs
+          mkisofs --version || true
+
           echo "========== Go =========="
           go version
 
-          echo "========== Build script =========="
-          test -s ./build.sh
-          chmod +x ./build.sh
-          bash -n ./build.sh
-
           echo "========== Project files =========="
-          test -f packages.txt
+          test -s build.sh
+          test -s packages.txt
           test -d overlay
-          test -d src
+          test -s src/main.go
 
-          echo "ImmortalWrt release: $RELEASE"
+          chmod +x build.sh
+          bash -n build.sh
 
-      - name: Build ImageBuilder image
+          echo "ImmortalWrt release: ${RELEASE}"
+
+      - name: Build firmware
         shell: bash
         run: |
           set -Eeuo pipefail
           bash ./build.sh
 
-      - name: Check firmware output
+      - name: Inspect firmware output
         if: success()
         shell: bash
         run: |
@@ -86,25 +93,25 @@ jobs:
 
           if [ ! -d output ]; then
             echo "::error::output directory does not exist"
-            echo "Check the output copy step in build.sh"
             exit 1
           fi
 
-          echo "========== Firmware files =========="
+          echo "========== Generated files =========="
           find output -maxdepth 2 -type f \
             -printf '%p (%s bytes)\n'
 
-          if ! find output -maxdepth 2 -type f \
+          if ! find output -maxdepth 1 -type f \
             \( -name '*.img' \
             -o -name '*.img.gz' \
             -o -name '*.qcow2' \
             -o -name '*.vdi' \
             -o -name '*.vmdk' \
+            -o -name '*.vhdx' \
+            -o -name '*.iso' \
             -o -name '*.combined*' \
-            -o -name '*.bin' \
-            -o -name '*.vhdx' \) \
+            -o -name '*.bin' \) \
             -print -quit | grep -q .; then
-            echo "::error::No recognized firmware image found"
+            echo "::error::No firmware image found in output/"
             exit 1
           fi
 
@@ -121,5 +128,5 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          echo "Build failed. Inspect the first failed step."
-          echo "Check ImageBuilder logs and output paths."
+          echo "Build failed. Review the first failed step."
+          echo "Check ImageBuilder logs, package dependencies and output files."
