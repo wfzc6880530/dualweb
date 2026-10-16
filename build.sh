@@ -66,10 +66,82 @@ echo "========== Verify package manifest =========="
 make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
 echo "========== Build firmware =========="
 make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT"
-cp "$WORK/$IB" "$OUT/"
-cp "$WORK/sha256sums" "$OUT/official-sha256sums.txt" 2>/dev/null || true
+# Keep only the requested generic squashfs combined image in the firmware output.
+IMAGE="$(find "$OUT" -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
+if [[ -z "$IMAGE" ]]; then
+  RAW_IMAGE="$(find "$OUT" -maxdepth 1 -type f -name '*-generic-squashfs-combined.img' -print -quit)"
+  if [[ -n "$RAW_IMAGE" ]]; then
+    gzip -n -9 "$RAW_IMAGE"
+    IMAGE="${RAW_IMAGE}.gz"
+  fi
+fi
+if [[ -z "$IMAGE" || ! -s "$IMAGE" ]]; then
+  echo "ERROR: expected *-generic-squashfs-combined.img.gz was not generated." >&2
+  find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\\n' >&2
+  exit 1
+fi
+
+# Build a plugin installer bundle. Local APKs (including Nikki's release APKs)
+# are bundled; other selected packages and their transitive dependencies are
+# resolved by apk from the target's configured ImmortalWrt repositories.
+BUNDLE="$WORK/package-bundle"
+rm -rf "$BUNDLE"
+mkdir -p "$BUNDLE/packages"
+find "$IBDIR/packages" -maxdepth 1 -type f -name '*.apk' -exec cp -f {} "$BUNDLE/packages/" \\;
+cp "$ROOT/packages.txt" "$BUNDLE/packages.txt"
+make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES" > "$BUNDLE/imagebuilder-manifest.txt"
+cat > "$BUNDLE/README.txt" <<'EOF'
+DualWeb plugin installer bundle
+- Bundled local APK files are under packages/.
+- packages.txt records the selected plugin/package set.
+- The installer resolves packages and transitive dependencies from the device's configured ImmortalWrt APK repositories.
+- This is not a fully offline dependency mirror. The target must have working repository access.
+- Open-Box proprietary runtime is not included; redistribution permission must be confirmed first.
+EOF
+tar -czf "$OUT/dualweb-packages.tar.gz" -C "$BUNDLE" .
+
+# Create a self-extracting .run installer using the same bundle.
+cat > "$WORK/install-dualweb.run.header" <<'INSTALL_HEADER'
+#!/bin/sh
+set -eu
+if [ "$(id -u)" -ne 0 ]; then
+  echo "请以 root 身份运行此安装包。" >&2
+  exit 1
+fi
+if ! command -v apk >/dev/null 2>&1; then
+  echo "未检测到 apk 包管理器；此安装包仅适用于匹配的 ImmortalWrt APK 系统。" >&2
+  exit 1
+fi
+SELF="$0"
+TMP="$(mktemp -d /tmp/dualweb-install.XXXXXX)"
+trap 'rm -rf "$TMP"' EXIT INT TERM
+LINE="$(awk '/^__DUALWEB_PAYLOAD_BELOW__$/ { print NR; exit }' "$SELF")"
+if [ -z "$LINE" ]; then
+  echo "安装包损坏：找不到数据段。" >&2
+  exit 1
+fi
+tail -n "+$((LINE + 1))" "$SELF" | tar -xz -C "$TMP"
+PKGS="$(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' "$TMP/packages.txt" | tr '\\' ' ' | xargs)"
+echo "将安装插件及依赖；依赖由系统配置的软件源解析。"
+# Intentional word splitting: packages.txt is a whitespace-separated package list.
+# shellcheck disable=SC2086
+apk add --allow-untrusted $PKGS "$TMP"/packages/*.apk
+echo "安装完成。建议重启相关服务并检查 LuCI/代理服务状态。"
+exit 0
+__DUALWEB_PAYLOAD_BELOW__
+INSTALL_HEADER
+cat "$WORK/install-dualweb.run.header" "$OUT/dualweb-packages.tar.gz" > "$OUT/install-dualweb.run"
+chmod 0755 "$OUT/install-dualweb.run"
+
+# Retain only the firmware image and the two requested plugin installer artifacts.
+find "$OUT" -maxdepth 1 -type f \\
+  ! -name '*-generic-squashfs-combined.img.gz' \\
+  ! -name 'dualweb-packages.tar.gz' \\
+  ! -name 'install-dualweb.run' \\
+  -delete
 (
   cd "$OUT"
   sha256sum * > SHA256SUMS.local
 )
-echo "Build complete: $OUT"
+echo "Build complete. Final artifacts:"
+find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\\n'
