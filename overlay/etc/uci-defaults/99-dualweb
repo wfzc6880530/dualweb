@@ -1,5 +1,5 @@
 #!/bin/sh
-# First-boot setup: preserve router's normal LAN defaults and move LuCI to 8080.
+# First-boot setup: preserve router LAN defaults and move LuCI to 8080.
 uci -q delete uhttpd.main.listen_http
 uci add_list uhttpd.main.listen_http='0.0.0.0:8080'
 uci add_list uhttpd.main.listen_http='[::]:8080'
@@ -10,11 +10,11 @@ uci commit uhttpd
 /etc/init.d/nginx enable
 
 mkdir -p /etc/dualweb /etc/dualweb/profiles /root
+# Initialize the homepage password once. Do not reset it on later boots.
 if [ ! -s /etc/dualweb/password ]; then
-    PW="$(head -c 24 /dev/urandom | hexdump -v -e '/1 "%02x"' | cut -c1-24)"
-    printf '%s' "$PW" > /etc/dualweb/password
+    printf '%s' 'root' > /etc/dualweb/password
     chmod 600 /etc/dualweb/password
-    printf '首页初始密码：%s\n请登录后立即修改。\n' "$PW" > /root/dualweb-initial-password.txt
+    printf '首页初始密码：root\n请登录后立即修改。\n' > /root/dualweb-initial-password.txt
     chmod 600 /root/dualweb-initial-password.txt
 fi
 if [ ! -s /etc/dualweb/session-key ]; then
@@ -26,7 +26,7 @@ if [ ! -s /etc/dualweb/mihomo-secret ]; then
     chmod 600 /etc/dualweb/mihomo-secret
 fi
 
-# Install Vantage (signed repository) and Nikki after WAN becomes available.
+# Install Vantage and Nikki after WAN connectivity is available.
 (
   LOG=/tmp/dualweb-firstboot.log
   echo "$(date): firstboot package install started" >> "$LOG"
@@ -36,7 +36,7 @@ fi
     n=$((n+1)); sleep 10
   done
   if [ "$n" -ge 60 ]; then echo "No internet; install packages manually later" >> "$LOG"; exit 0; fi
-  # Vantage signing key fingerprint is published by the upstream project README.
+
   mkdir -p /etc/apk/repositories.d /etc/apk/keys
   if wget -q -T 20 -O /etc/apk/keys/vantage-signing.pem https://anothadev.github.io/luci-theme-vantage/vantage-signing.pem; then
     SUM="$(sha256sum /etc/apk/keys/vantage-signing.pem | awk '{print $1}')"
@@ -51,12 +51,15 @@ fi
     else echo "Vantage key checksum mismatch; refusing install" >> "$LOG"; rm -f /etc/apk/keys/vantage-signing.pem; fi
   else echo "Could not download Vantage key" >> "$LOG"; fi
 
-  # Nikki official installer detects the correct ImmortalWrt 25.12 APK feed.
-  wget -q -T 30 -O /tmp/dualweb-nikki-install.sh https://github.com/nikkinikki-org/OpenWrt-nikki/raw/refs/heads/main/install.sh
-  if [ -s /tmp/dualweb-nikki-install.sh ]; then
-    ash /tmp/dualweb-nikki-install.sh >> "$LOG" 2>&1
-    echo "Nikki installer exit=$?" >> "$LOG"
-  else echo "Could not download Nikki installer; install via LuCI/SSH" >> "$LOG"; fi
+  if wget -q -T 30 -O /tmp/dualweb-nikki-install.sh https://github.com/nikkinikki-org/OpenWrt-nikki/raw/refs/heads/main/install.sh && [ -s /tmp/dualweb-nikki-install.sh ]; then
+    if ash /tmp/dualweb-nikki-install.sh >> "$LOG" 2>&1; then
+      echo "Nikki installer succeeded" >> "$LOG"
+    else
+      echo "Nikki installer failed; see log and retry manually" >> "$LOG"
+    fi
+  else
+    echo "Could not download Nikki installer; install via LuCI/SSH" >> "$LOG"
+  fi
   /etc/init.d/nginx restart
   /etc/init.d/uhttpd restart
   echo "$(date): firstboot package install finished" >> "$LOG"
