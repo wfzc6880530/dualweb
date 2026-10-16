@@ -117,7 +117,7 @@ jobs:
           test -s output/install-dualweb.run || { echo "::error::Missing .run installer"; exit 1; }
 
           echo "========== Final release files =========="
-          find output -maxdepth 1 -type f -printf '%f (%s bytes)\\n'
+          find output -maxdepth 1 -type f -printf '%f (%s bytes)\n'
           echo "========== Checksums =========="
           (cd output && sha256sum *)
 
