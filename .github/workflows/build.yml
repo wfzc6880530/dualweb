@@ -29,6 +29,7 @@ on:
       - 'overlay/**'
       - 'src/**'
       - 'build.sh'
+      - 'scripts/**'
       - 'packages.txt'
       - 'README.md'
 
