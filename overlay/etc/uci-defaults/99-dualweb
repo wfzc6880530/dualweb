@@ -5,6 +5,14 @@ uci add_list uhttpd.main.listen_http='0.0.0.0:8080'
 uci add_list uhttpd.main.listen_http='[::]:8080'
 uci commit uhttpd
 
+# Prefer Argon when installed; keep Vantage fallback if Argon is unavailable.
+if [ -d /www/luci-static/argon ]; then
+    uci -q set luci.main.mediaurlbase='/luci-static/argon'
+elif [ -d /www/luci-static/vantage ]; then
+    uci -q set luci.main.mediaurlbase='/luci-static/vantage'
+fi
+uci -q commit luci
+
 /etc/init.d/uhttpd enable
 /etc/init.d/dualweb-api enable
 /etc/init.d/nginx enable
@@ -27,7 +35,6 @@ if [ ! -s /etc/dualweb/mihomo-secret ]; then
 fi
 
 # Run package installation under procd, not as a child of uci-defaults.
-# This keeps the installer alive after the defaults script exits.
 /etc/init.d/dualweb-firstboot enable
 /etc/init.d/dualweb-firstboot start
 

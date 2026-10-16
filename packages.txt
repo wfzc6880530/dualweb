@@ -1,6 +1,9 @@
 base-files ca-bundle curl wget-ssl ca-certificates busybox uci uclient-fetch jsonfilter \
-nginx luci luci-compat luci-base luci-mod-admin-full luci-theme-bootstrap \
+nginx luci luci-compat luci-base luci-mod-admin-full luci-mod-system luci-theme-bootstrap \
+luci-theme-argon luci-app-argon-config luci-i18n-argon-config-zh-cn \
 rpcd rpcd-mod-ucode rpcd-mod-file uhttpd uhttpd-mod-ubus \
 firewall4 nftables kmod-nft-tproxy kmod-tun ip-full kmod-inet-diag kmod-nft-socket kmod-dummy \
-htop luci-i18n-base-zh-cn \
-mihomo-meta nikki luci-app-nikki luci-i18n-nikki-zh-cn
+htop luci-i18n-base-zh-cn luci-app-attendedsysupgrade \
+ttyd luci-app-ttyd vlmcsd luci-app-vlmcsd \
+mihomo-meta nikki luci-app-nikki luci-i18n-nikki-zh-cn \
+luci-app-passwall luci-i18n-passwall-zh-cn luci-app-openclash

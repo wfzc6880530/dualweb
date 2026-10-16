@@ -8,6 +8,17 @@ on:
         required: true
         default: '25.12.2'
 
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/**'
+      - 'overlay/**'
+      - 'src/**'
+      - 'build.sh'
+      - 'packages.txt'
+      - 'README.md'
+
   push:
     branches:
       - main
