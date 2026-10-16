@@ -130,7 +130,6 @@ jobs:
             output/*-generic-squashfs-combined.img.gz
             output/dualweb-packages.tar.gz
             output/install-dualweb.run
-            output/SHA256SUMS.local
           if-no-files-found: error
           retention-days: 30
 
