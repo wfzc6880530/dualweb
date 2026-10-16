@@ -103,7 +103,6 @@ __OPENBOX_OFFLINE_PAYLOAD__
 INSTALL_HEADER
 
 cat "$WORK/header" > "$RUN"
-printf '\n' >> "$RUN"
 tar -czf - -C "$WORK/payload" . >> "$RUN"
 chmod 0755 "$RUN"
 echo "生成完成：$RUN"
