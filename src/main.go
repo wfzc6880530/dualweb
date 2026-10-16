@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -154,6 +155,10 @@ func route(w http.ResponseWriter, r *http.Request) {
 		}
 		http.SetCookie(w, &http.Cookie{Name: "dualweb_session", Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 		writeJSON(w, 200, reply{"ok": true})
+		return
+	}
+	if r.URL.Path == "/api/connectivity" && r.Method == "GET" {
+		connectivity(w)
 		return
 	}
 	if r.URL.Path == "/api/status" && r.Method == "GET" {
@@ -540,6 +545,35 @@ func mihomoGroup(w http.ResponseWriter, name string) {
 	}
 	writeJSON(w, 200, reply{"now": d.Proxy.Now, "all": d.Proxy.All, "type": d.Proxy.Type})
 }
+
+type probeTarget struct { ID string `json:"id"`; Name string `json:"name"`; URL string `json:"url"` }
+type probeResult struct { ID string `json:"id"`; Name string `json:"name"`; OK bool `json:"ok"`; LatencyMS int64 `json:"latencyMs"`; TargetIP string `json:"targetIP,omitempty"`; Status string `json:"status,omitempty"`; Error string `json:"error,omitempty"` }
+func probeOne(t probeTarget) probeResult {
+	result := probeResult{ID:t.ID, Name:t.Name}
+	u, err := url.Parse(t.URL); if err != nil { result.Error = "检测地址无效"; return result }
+	start := time.Now(); var ipMu sync.Mutex; connectedIP := ""
+	transport := &http.Transport{Proxy:nil, DialContext:func(ctx context.Context, network, address string)(net.Conn,error){
+		conn,e:=(&net.Dialer{Timeout:4*time.Second,KeepAlive:15*time.Second}).DialContext(ctx,network,address)
+		if e==nil { host,_,splitErr:=net.SplitHostPort(conn.RemoteAddr().String()); if splitErr==nil { ipMu.Lock(); connectedIP=host; ipMu.Unlock() } }; return conn,e
+	},TLSHandshakeTimeout:4*time.Second,ResponseHeaderTimeout:4*time.Second,DisableKeepAlives:true}
+	client:=&http.Client{Transport:transport,Timeout:7*time.Second,CheckRedirect:func(req *http.Request,via []*http.Request)error{if len(via)>=3{return http.ErrUseLastResponse};return nil}}
+	defer transport.CloseIdleConnections()
+	req,err:=http.NewRequest(http.MethodGet,t.URL,nil); if err!=nil {result.Error=err.Error();return result}
+	req.Header.Set("User-Agent","DualWeb-Connectivity/1.0"); req.Header.Set("Range","bytes=0-0")
+	resp,err:=client.Do(req); result.LatencyMS=time.Since(start).Milliseconds()
+	ipMu.Lock(); result.TargetIP=connectedIP; ipMu.Unlock()
+	if result.TargetIP=="" {ips,_:=net.LookupIP(u.Hostname());if len(ips)>0{result.TargetIP=ips[0].String()}}
+	if err!=nil {result.Error="连接失败："+err.Error();return result}
+	defer resp.Body.Close(); result.Status=resp.Status; _,_=io.Copy(io.Discard,io.LimitReader(resp.Body,1024))
+	result.OK=resp.StatusCode>=200&&resp.StatusCode<500; if !result.OK {result.Error="HTTP 返回异常状态"}; return result
+}
+func connectivity(w http.ResponseWriter) {
+	targets:=[]probeTarget{{ID:"aliyun",Name:"阿里云",URL:"https://www.aliyun.com/"},{ID:"google",Name:"Google",URL:"https://www.google.com/generate_204"},{ID:"github",Name:"GitHub",URL:"https://github.com/"},{ID:"telegram",Name:"Telegram",URL:"https://telegram.org/"}}
+	results:=make([]probeResult,len(targets));var wg sync.WaitGroup
+	for i,t:=range targets {wg.Add(1);go func(i int,t probeTarget){defer wg.Done();results[i]=probeOne(t)}(i,t)}
+	wg.Wait();writeJSON(w,200,reply{"results":results,"checkedAt":time.Now().Format("2006-01-02 15:04:05")})
+}
+
 func main() {
 	_ = os.MkdirAll("/etc/dualweb", 0700)
 	mux := http.NewServeMux()
