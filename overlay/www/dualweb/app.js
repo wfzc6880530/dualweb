@@ -1,4 +1,6 @@
 const $=id=>document.getElementById(id);let wanPending=false;const base=location.protocol+'//'+location.hostname;
+['openboxLink','passwallLink','openclashLink'].forEach(id=>{const el=document.getElementById(id);if(el)el.href=base+(id==='openboxLink'?':3036/':':8080/cgi-bin/luci/admin/services/'+(id==='passwallLink'?'passwall':'openclash'));});
+const nikkiLink=document.querySelector('a[href*="admin/services/nikki"]');if(nikkiLink)nikkiLink.href=base+':8080/cgi-bin/luci/admin/services/nikki';
 $('luciLink').href=base+':8080/';$('luciButton').href=base+':8080/';
 async function api(path,opts={}){const r=await fetch('/api/'+path,{credentials:'same-origin',...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d}
 function msg(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error)}function toast(t){$('toast').textContent=t;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3500)}
