@@ -16,6 +16,7 @@ on:
       - 'overlay/**'
       - 'src/**'
       - 'build.sh'
+      - 'scripts/**'
       - 'packages.txt'
       - 'README.md'
 
@@ -88,6 +89,7 @@ jobs:
 
           chmod +x build.sh
           bash -n build.sh
+          if [ -f scripts/build-open-box-offline.sh ]; then bash -n scripts/build-open-box-offline.sh; fi
 
           echo "ImmortalWrt release: ${RELEASE}"
 
