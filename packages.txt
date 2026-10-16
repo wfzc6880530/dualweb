@@ -1,5 +1,6 @@
 base-files ca-bundle curl wget-ssl ca-certificates busybox uci uclient-fetch jsonfilter \
 nginx luci luci-compat luci-base luci-mod-admin-full luci-theme-bootstrap \
- rpcd rpcd-mod-ucode rpcd-mod-file uhttpd uhttpd-mod-ubus \
+rpcd rpcd-mod-ucode rpcd-mod-file uhttpd uhttpd-mod-ubus \
 firewall4 nftables kmod-nft-tproxy kmod-tun ip-full kmod-inet-diag kmod-nft-socket kmod-dummy \
-htop luci-i18n-base-zh-cn
+htop luci-i18n-base-zh-cn \
+mihomo-meta nikki luci-app-nikki luci-i18n-nikki-zh-cn
