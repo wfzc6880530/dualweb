@@ -1,1 +1,38 @@
-
+name: Build Dual Web
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'ImmortalWrt stable release'
+        required: true
+        default: '25.12.2'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'overlay/**'
+      - 'src/**'
+      - 'build.sh'
+      - 'packages.txt'
+      - 'README.md'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      RELEASE: ${{ inputs.release || '25.12.2' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y zstd gzip xz-utils curl wget tar jq golang-go
+      - name: Build ImageBuilder image
+        run: ./build.sh
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-x86-64-dualweb
+          path: output/*
+          if-no-files-found: error
+          retention-days: 30
