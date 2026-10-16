@@ -98,10 +98,10 @@ DualWeb plugin installer bundle
 - This is not a fully offline dependency mirror. The target must have working repository access.
 - Open-Box proprietary runtime is not included; redistribution permission must be confirmed first.
 EOF
-tar -czf "$OUT/dualweb-packages.tar.gz" -C "$BUNDLE" .
+tar -czf "$OUT/dualweb-all-plugins.tar.gz" -C "$BUNDLE" .
 
 # Create a self-extracting .run installer using the same bundle.
-cat > "$WORK/install-dualweb.run.header" <<'INSTALL_HEADER'
+cat > "$WORK/dualweb-all-plugins.run.header" <<'INSTALL_HEADER'
 #!/bin/sh
 set -eu
 if [ "$(id -u)" -ne 0 ]; then
@@ -130,14 +130,14 @@ echo "安装完成。建议重启相关服务并检查 LuCI/代理服务状态�
 exit 0
 __DUALWEB_PAYLOAD_BELOW__
 INSTALL_HEADER
-cat "$WORK/install-dualweb.run.header" "$OUT/dualweb-packages.tar.gz" > "$OUT/install-dualweb.run"
-chmod 0755 "$OUT/install-dualweb.run"
+cat "$WORK/dualweb-all-plugins.run.header" "$OUT/dualweb-all-plugins.tar.gz" > "$OUT/dualweb-all-plugins.run"
+chmod 0755 "$OUT/dualweb-all-plugins.run"
 
 # Retain only the firmware image and the two requested plugin installer artifacts.
 find "$OUT" -maxdepth 1 -type f \
   ! -name '*-generic-squashfs-combined.img.gz' \
-  ! -name 'dualweb-packages.tar.gz' \
-  ! -name 'install-dualweb.run' \
+  ! -name 'dualweb-all-plugins.tar.gz' \
+  ! -name 'dualweb-all-plugins.run' \
   -delete
 echo "Build complete. Final artifacts:"
 find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\n'
