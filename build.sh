@@ -139,9 +139,5 @@ find "$OUT" -maxdepth 1 -type f \\
   ! -name 'dualweb-packages.tar.gz' \\
   ! -name 'install-dualweb.run' \\
   -delete
-(
-  cd "$OUT"
-  sha256sum * > SHA256SUMS.local
-)
 echo "Build complete. Final artifacts:"
 find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\\n'
