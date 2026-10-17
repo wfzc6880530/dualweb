@@ -8,7 +8,7 @@ on:
         required: true
         default: '25.12.2'
 
-  push:
+  pull_request:
     branches:
       - main
     paths:
@@ -16,6 +16,20 @@ on:
       - 'overlay/**'
       - 'src/**'
       - 'build.sh'
+      - 'scripts/**'
+      - 'packages.txt'
+      - 'README.md'
+
+  push:
+    branches:
+      - main
+      - test/openbox-artifacts
+    paths:
+      - '.github/workflows/**'
+      - 'overlay/**'
+      - 'src/**'
+      - 'build.sh'
+      - 'scripts/**'
       - 'packages.txt'
       - 'README.md'
 
@@ -76,6 +90,7 @@ jobs:
 
           chmod +x build.sh
           bash -n build.sh
+          if [ -f scripts/build-open-box-offline.sh ]; then bash -n scripts/build-open-box-offline.sh; fi
 
           echo "ImmortalWrt release: ${RELEASE}"
 
@@ -100,27 +115,25 @@ jobs:
           find output -maxdepth 2 -type f \
             -printf '%p (%s bytes)\n'
 
-          if ! find output -maxdepth 1 -type f \
-            \( -name '*.img' \
-            -o -name '*.img.gz' \
-            -o -name '*.qcow2' \
-            -o -name '*.vdi' \
-            -o -name '*.vmdk' \
-            -o -name '*.vhdx' \
-            -o -name '*.iso' \
-            -o -name '*.combined*' \
-            -o -name '*.bin' \) \
-            -print -quit | grep -q .; then
-            echo "::error::No firmware image found in output/"
-            exit 1
-          fi
+          IMAGE="$(find output -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
+          test -n "$IMAGE" || { echo "::error::Missing *-generic-squashfs-combined.img.gz"; exit 1; }
+          test -s output/dualweb-all-plugins.tar.gz || { echo "::error::Missing plugin bundle"; exit 1; }
+          test -s output/dualweb-all-plugins.run || { echo "::error::Missing .run installer"; exit 1; }
 
-      - name: Upload firmware
+          echo "========== Final release files =========="
+          find output -maxdepth 1 -type f -printf '%f (%s bytes)\n'
+          echo "========== Checksums =========="
+          (cd output && sha256sum *)
+
+      - name: Upload minimal release artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: immortalwrt-x86-64-dualweb
-          path: output/**
+          path: |
+            output/*-generic-squashfs-combined.img.gz
+            output/dualweb-all-plugins.tar.gz
+            output/dualweb-all-plugins.run
           if-no-files-found: error
           retention-days: 30
 
