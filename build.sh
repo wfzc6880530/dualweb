@@ -65,7 +65,9 @@ PACKAGES="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | x
 echo "========== Verify package manifest =========="
 make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
 echo "========== Build firmware =========="
-make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT"
+ROOTFS_PARTSIZE_MB="${ROOTFS_PARTSIZE_MB:-2048}"
+echo "Root filesystem partition size: ${ROOTFS_PARTSIZE_MB} MiB"
+make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT" CONFIG_TARGET_ROOTFS_PARTSIZE="$ROOTFS_PARTSIZE_MB"
 # Keep only the requested generic squashfs combined image in the firmware output.
 IMAGE="$(find "$OUT" -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
 if [[ -z "$IMAGE" ]]; then
