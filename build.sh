@@ -60,6 +60,60 @@ for pkg in mihomo-meta nikki luci-app-nikki luci-i18n-nikki-zh-cn; do
   fi
 done
 
+# Install the official Open-Box x86_64 OpenWrt bundle into the firmware at build time.
+# Open-Box's own license restricts redistribution; build/distribute this image only with authorization.
+OPENBOX_VERSION="${OPENBOX_VERSION:-v0.1.341}"
+OPENBOX_ARCHIVE="open-box-linux-x64.tar.gz"
+OPENBOX_BASE="https://github.com/liandu2024/Open-Box/releases/download/${OPENBOX_VERSION}"
+OPENBOX_TGZ="$WORK/$OPENBOX_ARCHIVE"
+OPENBOX_SHA="$WORK/$OPENBOX_ARCHIVE.sha256"
+if [[ ! -s "$OPENBOX_TGZ" ]]; then
+  echo "Downloading Open-Box ${OPENBOX_VERSION}: ${OPENBOX_BASE}/${OPENBOX_ARCHIVE}"
+  curl -fL --retry 5 --retry-delay 3 --connect-timeout 30 "${OPENBOX_BASE}/${OPENBOX_ARCHIVE}" -o "$OPENBOX_TGZ"
+fi
+curl -fL --retry 5 --retry-delay 3 --connect-timeout 30 "${OPENBOX_BASE}/${OPENBOX_ARCHIVE}.sha256" -o "$OPENBOX_SHA"
+(cd "$WORK" && sha256sum -c "$(basename "$OPENBOX_SHA")")
+tar -tzf "$OPENBOX_TGZ" >/dev/null
+OPENBOX_ROOT="$ROOT/overlay/opt/open-box"
+rm -rf "$OPENBOX_ROOT"
+mkdir -p "$OPENBOX_ROOT"
+tar -xzf "$OPENBOX_TGZ" -C "$OPENBOX_ROOT"
+test -s "$OPENBOX_ROOT/meta.json"
+test -s "$OPENBOX_ROOT/openwrt/initd/openbox-panel"
+test -s "$OPENBOX_ROOT/openwrt/initd/openbox"
+mkdir -p "$ROOT/overlay/etc/init.d" \
+  "$ROOT/overlay/etc/uci-defaults" \
+  "$ROOT/overlay/usr/bin" \
+  "$ROOT/overlay/www/luci-static/resources/view/openbox" \
+  "$ROOT/overlay/usr/share/luci/menu.d" \
+  "$ROOT/overlay/usr/share/rpcd/acl.d"
+cp "$OPENBOX_ROOT/openwrt/initd/openbox" "$ROOT/overlay/etc/init.d/openbox"
+cp "$OPENBOX_ROOT/openwrt/initd/openbox-panel" "$ROOT/overlay/etc/init.d/openbox-panel"
+chmod 0755 "$ROOT/overlay/etc/init.d/openbox" "$ROOT/overlay/etc/init.d/openbox-panel" "$OPENBOX_ROOT/openwrt/bin/open-box"
+cp "$OPENBOX_ROOT/openwrt/luci/htdocs/luci-static/resources/view/openbox/"*.js "$ROOT/overlay/www/luci-static/resources/view/openbox/"
+cp "$OPENBOX_ROOT/openwrt/luci/root/usr/share/luci/menu.d/luci-app-openbox.json" "$ROOT/overlay/usr/share/luci/menu.d/"
+cp "$OPENBOX_ROOT/openwrt/luci/root/usr/share/rpcd/acl.d/luci-app-openbox.json" "$ROOT/overlay/usr/share/rpcd/acl.d/"
+chmod 0644 "$ROOT/overlay/www/luci-static/resources/view/openbox/"*.js \
+  "$ROOT/overlay/usr/share/luci/menu.d/luci-app-openbox.json" \
+  "$ROOT/overlay/usr/share/rpcd/acl.d/luci-app-openbox.json"
+ln -sfn /opt/open-box/openwrt/bin/open-box "$ROOT/overlay/usr/bin/open-box"
+cat > "$ROOT/overlay/etc/uci-defaults/98-openbox" <<'OPENBOX_DEFAULTS'
+#!/bin/sh
+# Initialize Open-Box's data and LuCI panel. Do not start its proxy core by default:
+# Nikki/Mihomo remains the selected core to avoid competing transparent-proxy rules.
+mkdir -p /opt/open-box/data
+[ -s /opt/open-box/data/panel-port ] || printf '3036\\n' > /opt/open-box/data/panel-port
+[ -s /opt/open-box/data/channel ] || printf 'direct\\n' > /opt/open-box/data/channel
+chmod 0755 /opt/open-box/openwrt/bin/open-box /etc/init.d/openbox /etc/init.d/openbox-panel
+/etc/init.d/openbox disable >/dev/null 2>&1 || true
+/etc/init.d/openbox-panel enable
+/etc/init.d/openbox-panel start >/dev/null 2>&1 || true
+rm -rf /tmp/luci-*cache* 2>/dev/null || true
+exit 0
+OPENBOX_DEFAULTS
+chmod 0755 "$ROOT/overlay/etc/uci-defaults/98-openbox"
+echo "Open-Box ${OPENBOX_VERSION} integrated into /opt/open-box (panel port 3036; core will remain disabled)."
+
 # Fetch the official Zashboard static release at build time and bake it into port 80.
 # The dashboard remains independently updateable on the running router.
 ZASHBOARD_URL="${ZASHBOARD_URL:-https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip}"
@@ -90,7 +144,7 @@ PACKAGES="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | x
 echo "========== Verify package manifest =========="
 make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
 echo "========== Build firmware =========="
-make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT"
+make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT" ROOTFS_PARTSIZE=2048
 cp "$WORK/$IB" "$OUT/"
 cp "$WORK/sha256sums" "$OUT/official-sha256sums.txt" 2>/dev/null || true
 (
