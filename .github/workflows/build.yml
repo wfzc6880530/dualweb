@@ -62,7 +62,8 @@ jobs:
             jq \
             golang-go \
             qemu-utils \
-            genisoimage
+            genisoimage \
+            unzip
 
       - name: Verify build environment
         shell: bash
