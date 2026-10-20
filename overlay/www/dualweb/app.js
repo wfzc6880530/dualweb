@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);let wanPending=false;const base=location.protocol+'//'+location.hostname;
-$('luciLink').href=base+':8080/';$('luciButton').href=base+':8080/';
+$('luciLink').href=base+':8080/';$('luciButton').href=base+':8080/';$('openBoxLink').href=base+':8080/cgi-bin/luci/admin/services/openbox';$('openBoxLink').target='_blank';$('openBoxLink').rel='noopener';
 async function api(path,opts={}){const r=await fetch('/api/'+path,{credentials:'same-origin',...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d}
 function msg(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error)}function toast(t){$('toast').textContent=t;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3500)}
 async function loginCheck(){try{await api('status');$('loginCard').hidden=true;$('app').hidden=false;await refreshAll()}catch{$('loginCard').hidden=false;$('app').hidden=true}}
