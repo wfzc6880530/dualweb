@@ -15,6 +15,28 @@ for(const [id,action] of [['proxyStart','start'],['proxyStop','stop'],['proxyRes
 function toggleProto(){const p=$('proto').value;document.querySelectorAll('.pppoe').forEach(x=>x.hidden=p!=='pppoe');document.querySelectorAll('.static').forEach(x=>x.hidden=p!=='static')}$('proto').onchange=toggleProto;
 $('wanForm').addEventListener('submit',async e=>{e.preventDefault();if(!confirm('将修改 WAN 并重载网络。若 120 秒内没有确认，系统会尝试自动恢复旧配置。继续？'))return;const p=$('proto').value;const data={proto:p,dns:$('dns').value};if(p==='pppoe'){data.username=$('username').value;data.password=$('wanPassword').value}else if(p==='static'){data.ipaddr=$('ipaddr').value;data.netmask=$('netmask').value;data.gateway=$('gateway').value}try{const d=await api('wan/apply',{method:'POST',body:JSON.stringify(data)});wanPending=true;$('confirmWan').hidden=false;msg('wanMsg','配置已应用。请确认管理连接正常；120 秒后未确认将自动回滚。回滚 ID：'+d.rollbackId);toast('WAN 已应用，等待确认')}catch(e){msg('wanMsg',e.message,true)}});
 $('confirmWan').onclick=async()=>{try{await api('wan/confirm',{method:'POST',body:'{}'});wanPending=false;$('confirmWan').hidden=true;msg('wanMsg','已确认，自动回滚已取消。');toast('WAN 配置已确认')}catch(e){msg('wanMsg',e.message,true)}};
+function showWebSection(which){
+ const router=which==='router';
+ $('routerControls').hidden=!router;
+ $('zashboardPanel').hidden=router;
+ $('showRouter').classList.toggle('primary',router);
+ $('showZashboard').classList.toggle('primary',!router);
+ if(!router){
+  const frame=$('zashboardFrame');
+  if(!frame.dataset.loaded){
+   const port=location.port || (location.protocol==='https:'?'443':'80');
+   const query='hostname='+encodeURIComponent(location.hostname)+'&port='+encodeURIComponent(port)+'&secondaryPath='+encodeURIComponent('/clash');
+   frame.src='/zashboard/#/setup?'+query;
+   frame.dataset.loaded='1';
+  }
+ }
+}
+$('showRouter').addEventListener('click',()=>showWebSection('router'));
+$('showZashboard').addEventListener('click',()=>showWebSection('zashboard'));
+$('reloadZashboard').addEventListener('click',()=>{
+ const frame=$('zashboardFrame');
+ if(frame.src) frame.src=frame.src;
+});
 loginCheck();setInterval(()=>{if(!$('app').hidden)refreshStatus().catch(()=>{})},10000);
 
 $('passwordForm').addEventListener('submit',async e=>{e.preventDefault();try{await api('password/change',{method:'POST',body:JSON.stringify({old:$('oldPassword').value,new:$('newPassword').value})});$('oldPassword').value='';$('newPassword').value='';msg('passwordMsg','密码已更新，请妥善保管。');toast('首页密码已更新')}catch(e){msg('passwordMsg',e.message,true)}});
