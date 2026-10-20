@@ -18,7 +18,7 @@ function showWebSection(which){
  $('showZashboard').classList.toggle('primary',zash);
  $('showOpenBox').classList.toggle('primary',openbox);
  if(zash){const frame=$('zashboardFrame');if(!frame.dataset.loaded){const port=location.port||(location.protocol==='https:'?'443':'80');const query='hostname='+encodeURIComponent(location.hostname)+'&port='+encodeURIComponent(port)+'&secondaryPath='+encodeURIComponent('/clash');frame.src='/zashboard/#/setup?'+query;frame.dataset.loaded='1';}}
- if(openbox){const frame=$('openBoxFrame');if(!frame.dataset.loaded){frame.src='/openbox/';frame.dataset.loaded='1';}}
+ if(openbox){const frame=$('openBoxFrame');if(!frame.dataset.loaded){frame.src='/openbox-lite/';frame.dataset.loaded='1';}}
 }
 $('showRouter').addEventListener('click',()=>showWebSection('router'));
 $('showZashboard').addEventListener('click',()=>showWebSection('zashboard'));
