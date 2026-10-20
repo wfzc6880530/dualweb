@@ -140,10 +140,14 @@ echo "========== Verify package manifest =========="
 make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
 echo "========== Build firmware =========="
 make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT" ROOTFS_PARTSIZE=2048
-cp "$WORK/$IB" "$OUT/"
-cp "$WORK/sha256sums" "$OUT/official-sha256sums.txt" 2>/dev/null || true
-(
-  cd "$OUT"
-  sha256sum * > SHA256SUMS.local
-)
-echo "Build complete: $OUT"
+# Keep exactly one distributable firmware file: generic squashfs combined image.
+IMAGE="$(find "$OUT" -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
+if [[ -z "$IMAGE" ]]; then
+  echo "ERROR: ImageBuilder did not produce *-generic-squashfs-combined.img.gz" >&2
+  find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\\n'
+  exit 1
+fi
+IMAGE_NAME="$(basename "$IMAGE")"
+find "$OUT" -maxdepth 1 -type f ! -name "$IMAGE_NAME" -delete
+test -s "$OUT/$IMAGE_NAME"
+echo "Build complete: $OUT/$IMAGE_NAME"
