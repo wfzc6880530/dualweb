@@ -39,6 +39,7 @@ chmod 0755 "$ROOT/overlay/etc/uci-defaults/99-dualweb"
 chmod 0755 "$ROOT/overlay/etc/init.d/dualweb-api"
 chmod 0755 "$ROOT/overlay/etc/init.d/dualweb-firstboot"
 chmod 0755 "$ROOT/overlay/usr/sbin/dualweb-firstboot-packages"
+chmod 0755 "$ROOT/overlay/usr/sbin/dualweb-update-zashboard"
 
 # Download Nikki's prebuilt APK packages for ImmortalWrt 25.12 and bake them into the image.
 # This is build-time only: the router does not need to reach GitHub on first boot.
@@ -58,6 +59,30 @@ for pkg in mihomo-meta nikki luci-app-nikki luci-i18n-nikki-zh-cn; do
     exit 1
   fi
 done
+
+# Fetch the official Zashboard static release at build time and bake it into port 80.
+# The dashboard remains independently updateable on the running router.
+ZASHBOARD_URL="${ZASHBOARD_URL:-https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip}"
+ZASHBOARD_ZIP="$WORK/zashboard-dist.zip"
+ZASHBOARD_DIR="$WORK/zashboard-dist"
+if [[ ! -s "$ZASHBOARD_ZIP" ]]; then
+  echo "Downloading Zashboard: $ZASHBOARD_URL"
+  curl -fL --retry 5 --retry-delay 3 --connect-timeout 30 "$ZASHBOARD_URL" -o "$ZASHBOARD_ZIP"
+fi
+unzip -tq "$ZASHBOARD_ZIP"
+rm -rf "$ZASHBOARD_DIR"
+mkdir -p "$ZASHBOARD_DIR" "$ROOT/overlay/www/dualweb/zashboard"
+unzip -q "$ZASHBOARD_ZIP" -d "$ZASHBOARD_DIR"
+ZASHBOARD_INDEX="$(find "$ZASHBOARD_DIR" -type f -name index.html -print -quit)"
+if [[ -z "$ZASHBOARD_INDEX" ]]; then
+  echo "ERROR: Zashboard release archive has no index.html" >&2
+  exit 1
+fi
+rm -rf "$ROOT/overlay/www/dualweb/zashboard"
+mkdir -p "$ROOT/overlay/www/dualweb/zashboard"
+cp -a "$(dirname "$ZASHBOARD_INDEX")/." "$ROOT/overlay/www/dualweb/zashboard/"
+test -s "$ROOT/overlay/www/dualweb/zashboard/index.html"
+echo "Zashboard static files: $(du -sh "$ROOT/overlay/www/dualweb/zashboard" | cut -f1)"
 
 mkdir -p "$IBDIR/files"
 cp -a "$ROOT/overlay/." "$IBDIR/files/"
