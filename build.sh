@@ -102,8 +102,8 @@ cat > "$ROOT/overlay/etc/uci-defaults/98-openbox" <<'OPENBOX_DEFAULTS'
 # Initialize Open-Box's data and LuCI panel. Do not start its proxy core by default:
 # Nikki/Mihomo remains the selected core to avoid competing transparent-proxy rules.
 mkdir -p /opt/open-box/data
-[ -s /opt/open-box/data/panel-port ] || printf '3036\\n' > /opt/open-box/data/panel-port
-[ -s /opt/open-box/data/channel ] || printf 'direct\\n' > /opt/open-box/data/channel
+[ -s /opt/open-box/data/panel-port ] || printf '3036\n' > /opt/open-box/data/panel-port
+[ -s /opt/open-box/data/channel ] || printf 'direct\n' > /opt/open-box/data/channel
 chmod 0755 /opt/open-box/openwrt/bin/open-box /etc/init.d/openbox /etc/init.d/openbox-panel
 /etc/init.d/openbox disable >/dev/null 2>&1 || true
 /etc/init.d/openbox-panel enable
