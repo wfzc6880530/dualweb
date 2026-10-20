@@ -12,6 +12,7 @@ on:
     branches:
       - main
       - feature/2026-10-20-dualweb-openbox-zashboard
+      - feature/2026-10-20-openbox-lite-nav
     paths:
       - '.github/workflows/**'
       - 'overlay/**'
@@ -24,6 +25,7 @@ on:
     branches:
       - main
       - feature/2026-10-20-dualweb-openbox-zashboard
+      - feature/2026-10-20-openbox-lite-nav
     paths:
       - '.github/workflows/**'
       - 'overlay/**'
