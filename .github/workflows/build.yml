@@ -114,27 +114,21 @@ jobs:
           find output -maxdepth 2 -type f \
             -printf '%p (%s bytes)\n'
 
-          if ! find output -maxdepth 1 -type f \
-            \( -name '*.img' \
-            -o -name '*.img.gz' \
-            -o -name '*.qcow2' \
-            -o -name '*.vdi' \
-            -o -name '*.vmdk' \
-            -o -name '*.vhdx' \
-            -o -name '*.iso' \
-            -o -name '*.combined*' \
-            -o -name '*.bin' \) \
-            -print -quit | grep -q .; then
-            echo "::error::No firmware image found in output/"
+          IMAGE="$(find output -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
+          if [ -z "$IMAGE" ]; then
+            echo "::error::Expected *-generic-squashfs-combined.img.gz not found"
             exit 1
           fi
+          echo "Selected firmware: $IMAGE"
+          find output -maxdepth 1 -type f ! -path "$IMAGE" -delete
+          test "$(find output -maxdepth 1 -type f | wc -l)" -eq 1
 
       - name: Upload firmware
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: immortalwrt-x86-64-dualweb
-          path: output/**
+          path: output/*-generic-squashfs-combined.img.gz
           if-no-files-found: error
           retention-days: 30
 
