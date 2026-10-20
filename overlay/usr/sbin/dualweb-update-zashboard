@@ -1,0 +1,45 @@
+#!/bin/sh
+# Update the Zashboard static frontend without reflashing firmware.
+set -eu
+URL="https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip"
+DEST="/www/dualweb/zashboard"
+TMP="/tmp/zashboard-update.$$"
+BACKUP="/www/dualweb/zashboard.previous"
+cleanup() { rm -rf "$TMP"; }
+trap cleanup EXIT HUP INT TERM
+
+command -v curl >/dev/null 2>&1 || { echo "ERROR: curl is required." >&2; exit 1; }
+command -v unzip >/dev/null 2>&1 || { echo "ERROR: unzip is required." >&2; exit 1; }
+mkdir -p "$TMP/unpacked"
+echo "[1/5] Downloading official Zashboard release..."
+curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 "$URL" -o "$TMP/dist.zip"
+unzip -tq "$TMP/dist.zip"
+unzip -q "$TMP/dist.zip" -d "$TMP/unpacked"
+INDEX="$(find "$TMP/unpacked" -type f -name index.html -print -quit)"
+[ -n "$INDEX" ] || { echo "ERROR: index.html missing; current panel unchanged." >&2; exit 1; }
+mkdir -p "$TMP/new"
+cp -a "$(dirname "$INDEX")"/. "$TMP/new/"
+test -s "$TMP/new/index.html"
+
+echo "[2/5] Installing update..."
+rm -rf "$BACKUP"
+[ ! -d "$DEST" ] || mv "$DEST" "$BACKUP"
+if ! mv "$TMP/new" "$DEST"; then
+  [ ! -d "$BACKUP" ] || mv "$BACKUP" "$DEST"
+  echo "ERROR: install failed; previous panel restored." >&2
+  exit 1
+fi
+
+echo "[3/5] Validating Nginx..."
+if ! nginx -t; then
+  rm -rf "$DEST"
+  [ ! -d "$BACKUP" ] || mv "$BACKUP" "$DEST"
+  /etc/init.d/nginx restart >/dev/null 2>&1 || true
+  echo "ERROR: validation failed; previous panel restored." >&2
+  exit 1
+fi
+
+echo "[4/5] Reloading Nginx..."
+/etc/init.d/nginx reload || /etc/init.d/nginx restart
+echo "[5/5] Update complete. Open the DualWeb homepage and choose Mihomo 代理面板."
+echo "Backup retained at $BACKUP. Remove it after confirming the panel works."
