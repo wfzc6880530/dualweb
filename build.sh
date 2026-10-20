@@ -107,18 +107,18 @@ rm -rf /tmp/luci-*cache* 2>/dev/null || true
 exit 0
 OPENBOX_DEFAULTS
 chmod 0755 "$ROOT/overlay/etc/uci-defaults/98-openbox"
-echo "Open-Box \${OPENBOX_VERSION} integrated; panel port 3036; proxy core disabled by default."
+echo "Open-Box ${OPENBOX_VERSION} integrated; panel port 3036; proxy core disabled by default."
 
 # Build an isolated Open-Box frontend for port 80. The original frontend under
 # /opt/open-box remains untouched and continues to serve port 3036.
-OPENBOX_WEB_INDEX="$(find "\${OPENBOX_ROOT}" -type f -name index.html -exec grep -l '<title>Open-Box</title>' {} + | head -n 1 || true)"
+OPENBOX_WEB_INDEX="$(find "${OPENBOX_ROOT}" -type f -name index.html -exec grep -l '<title>Open-Box</title>' {} + | head -n 1 || true)"
 if [[ -z "$OPENBOX_WEB_INDEX" ]]; then
   echo "ERROR: Could not locate the Open-Box web index.html in the official bundle." >&2
-  find "\${OPENBOX_ROOT}" -type f -name index.html -print >&2
+  find "${OPENBOX_ROOT}" -type f -name index.html -print >&2
   exit 1
 fi
 OPENBOX_WEB_ROOT="$(dirname "$OPENBOX_WEB_INDEX")"
-OPENBOX_LITE_ROOT="\${ROOT}/overlay/www/dualweb/openbox-lite"
+OPENBOX_LITE_ROOT="${ROOT}/overlay/www/dualweb/openbox-lite"
 rm -rf "$OPENBOX_LITE_ROOT"
 mkdir -p "$OPENBOX_LITE_ROOT"
 cp -a "$OPENBOX_WEB_ROOT/." "$OPENBOX_LITE_ROOT/"
