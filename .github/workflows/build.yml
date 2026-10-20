@@ -11,6 +11,7 @@ on:
   pull_request:
     branches:
       - main
+      - feature/2026-10-20-dualweb-openbox-zashboard
     paths:
       - '.github/workflows/**'
       - 'overlay/**'
