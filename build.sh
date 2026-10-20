@@ -137,7 +137,7 @@ PACKAGES="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | x
 echo "========== Verify package manifest =========="
 make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
 echo "========== Build firmware =========="
-make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT"
+make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT" ROOTFS_PARTSIZE=2048
 cp "$WORK/$IB" "$OUT/"
 cp "$WORK/sha256sums" "$OUT/official-sha256sums.txt" 2>/dev/null || true
 (
