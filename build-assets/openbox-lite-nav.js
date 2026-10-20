@@ -1,17 +1,13 @@
 (() => {
   "use strict";
-  const allowLabel = /^(overview|dashboard|概览|总览|proxy|proxies|代理|rule|rules|规则)$/i;
+  const allowLabel = /^(overview|dashboard|概览|总览|proxy|proxies|代理(?:组)?|rule|rules|规则)$/i;
   const allowPath = /\/(overview|dashboard|proxy|proxies|rules?)(\/|$)/i;
   const navRoots = 'nav, aside, [role="navigation"], [class*="sidebar"], [class*="sider"], [class*="navigation"], [class*="nav-menu"], [class*="menu-list"]';
   const hide = (el) => {
     const item = el.closest('li, [role="menuitem"], .ant-menu-item, .el-menu-item, [class*="menu-item"], [class*="nav-item"]') || el;
     item.classList.add('dualweb-openbox-lite-hidden');
   };
-  const label = (el) => [
-    el.getAttribute('aria-label') || '',
-    el.getAttribute('title') || '',
-    el.innerText || el.textContent || ''
-  ].join(' ').replace(/\s+/g, ' ').trim();
+  const label = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
   const apply = () => {
     document.querySelectorAll(navRoots + ' a, ' + navRoots + ' button, ' + navRoots + ' [role="menuitem"]').forEach((el) => {
       const text = label(el);
