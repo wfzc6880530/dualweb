@@ -64,7 +64,7 @@ done
 
 # Install the official Open-Box x86_64 OpenWrt bundle into the firmware at build time.
 # Open-Box's own license restricts redistribution; only distribute with authorization.
-OPENBOX_VERSION="${OPENBOX_VERSION:-v0.1.341}"
+OPENBOX_VERSION="${OPENBOX_VERSION:-v0.1.280}"
 OPENBOX_ARCHIVE="open-box-linux-x64.tar.gz"
 OPENBOX_BASE="https://github.com/liandu2024/Open-Box/releases/download/${OPENBOX_VERSION}"
 OPENBOX_TGZ="$WORK/$OPENBOX_ARCHIVE"
