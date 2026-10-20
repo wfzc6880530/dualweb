@@ -39,7 +39,9 @@ chmod 0755 "$ROOT/overlay/etc/uci-defaults/99-dualweb"
 chmod 0755 "$ROOT/overlay/etc/init.d/dualweb-api"
 chmod 0755 "$ROOT/overlay/etc/init.d/dualweb-firstboot"
 chmod 0755 "$ROOT/overlay/usr/sbin/dualweb-firstboot-packages"
-chmod 0755 "$ROOT/overlay/usr/sbin/dualweb-update-zashboard"
+if [[ -f "$ROOT/overlay/usr/sbin/dualweb-update-zashboard" ]]; then
+  chmod 0755 "$ROOT/overlay/usr/sbin/dualweb-update-zashboard"
+fi
 
 # Download Nikki's prebuilt APK packages for ImmortalWrt 25.12 and bake them into the image.
 # This is build-time only: the router does not need to reach GitHub on first boot.
