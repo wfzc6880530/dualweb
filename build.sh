@@ -107,7 +107,60 @@ rm -rf /tmp/luci-*cache* 2>/dev/null || true
 exit 0
 OPENBOX_DEFAULTS
 chmod 0755 "$ROOT/overlay/etc/uci-defaults/98-openbox"
-echo "Open-Box ${OPENBOX_VERSION} integrated; panel port 3036; proxy core disabled by default."
+echo "Open-Box \${OPENBOX_VERSION} integrated; panel port 3036; proxy core disabled by default."
+
+# Build an isolated Open-Box frontend for port 80. The original frontend under
+# /opt/open-box remains untouched and continues to serve port 3036.
+OPENBOX_WEB_INDEX="$(find "\${OPENBOX_ROOT}" -type f -name index.html -exec grep -l '<title>Open-Box</title>' {} + | head -n 1 || true)"
+if [[ -z "$OPENBOX_WEB_INDEX" ]]; then
+  echo "ERROR: Could not locate the Open-Box web index.html in the official bundle." >&2
+  find "\${OPENBOX_ROOT}" -type f -name index.html -print >&2
+  exit 1
+fi
+OPENBOX_WEB_ROOT="$(dirname "$OPENBOX_WEB_INDEX")"
+OPENBOX_LITE_ROOT="\${ROOT}/overlay/www/dualweb/openbox-lite"
+rm -rf "$OPENBOX_LITE_ROOT"
+mkdir -p "$OPENBOX_LITE_ROOT"
+cp -a "$OPENBOX_WEB_ROOT/." "$OPENBOX_LITE_ROOT/"
+cp "$ROOT/build-assets/openbox-lite-nav.js" "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.js"
+cp "$ROOT/build-assets/openbox-lite-nav.css" "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.css"
+
+# Rebase absolute API/static-asset paths to this isolated mount point, then
+# inject the small navigation filter. Only the copied frontend is modified.
+python3 - "$OPENBOX_LITE_ROOT" <<'PYOPENBOXLITE'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+index = root / "index.html"
+if not index.is_file():
+    raise SystemExit("ERROR: Open-Box web root does not contain index.html")
+for path in root.rglob("*"):
+    if not path.is_file():
+        continue
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        continue
+    updated = content.replace("/api/", "/openbox-lite/api/").replace("/assets/", "/openbox-lite/assets/")
+    if path == index:
+        if "</head>" not in updated or "</body>" not in updated:
+            raise SystemExit("ERROR: Open-Box index.html does not contain expected head/body closing tags")
+        updated = updated.replace(
+            "</head>",
+            '<link rel="stylesheet" href="/openbox-lite/dualweb-openbox-lite-nav.css"></head>',
+            1,
+        )
+        updated = updated.replace(
+            "</body>",
+            '<script src="/openbox-lite/dualweb-openbox-lite-nav.js"></script></body>',
+            1,
+        )
+    if updated != content:
+        path.write_text(updated, encoding="utf-8")
+print("Prepared isolated Open-Box frontend:", index)
+PYOPENBOXLITE
+test -s "$OPENBOX_LITE_ROOT/index.html"
+echo "Open-Box lite frontend copied to $OPENBOX_LITE_ROOT; original port 3036 files unchanged."
 
 # Fetch the official Zashboard static release at build time and bake it into port 80.
 # The dashboard remains independently updateable on the running router.
