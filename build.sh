@@ -144,7 +144,7 @@ make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files"
 IMAGE="$(find "$OUT" -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
 if [[ -z "$IMAGE" ]]; then
   echo "ERROR: ImageBuilder did not produce *-generic-squashfs-combined.img.gz" >&2
-  find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\\n'
+  find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\n'
   exit 1
 fi
 IMAGE_NAME="$(basename "$IMAGE")"
