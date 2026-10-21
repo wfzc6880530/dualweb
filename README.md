@@ -26,4 +26,4 @@
 
 本轮以功能完整性和可启动固件为优先，不再为了细微视觉差异牺牲功能稳定性。80 端口 DualWeb、80 端口 Open-Box 精简副本、3036 原版 Open-Box、8080 LuCI 与 Zashboard 各自保持独立边界。
 
-测试分支的范围、验收清单及未验收风险见 [B 方案功能验收基线](docs/PLAN-B-FUNCTIONAL-BASELINE.md)。构建成功后仍需刷机验证，不能将 ImageBuilder 成功视为所有功能已通过验收。
+测试分支的范围、验收清单及未验收风险见 [B 方案功能验收基线](docs/PLAN-B-FUNCTIONAL-BASELINE.md)。该测试分支允许通过 push 触发构建，方便独立验证；构建成功后仍需刷机验证，不能将 ImageBuilder 成功视为所有功能已通过验收。
