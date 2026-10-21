@@ -141,10 +141,13 @@ for path in root.rglob("*"):
         content = path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         continue
-    # Rewrite root-relative paths without duplicating the mount prefix.
+    # Rebase both root-relative and malformed bundle-relative URLs to the isolated mount.
     import re
     updated = re.sub(r"(?<!/openbox-lite)/api/", "/openbox-lite/api/", content)
     updated = re.sub(r"(?<!/openbox-lite)/assets/", "/openbox-lite/assets/", updated)
+    # Some Open-Box bundles ship index.html with ./openbox-lite/assets/... URLs.
+    # Since index.html itself lives at /openbox-lite/, that duplicates the prefix.
+    updated = re.sub(r"""([\x22\x27])\./openbox-lite/assets/""", r"\1/openbox-lite/assets/", updated)
     if path == index:
         if "</head>" not in updated or "</body>" not in updated:
             raise SystemExit("ERROR: Open-Box index.html does not contain expected head/body closing tags")
@@ -171,6 +174,15 @@ test -s "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.js"
 test -s "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.css"
 grep -Fq '/openbox-lite/dualweb-openbox-lite-nav.css' "$OPENBOX_LITE_ROOT/index.html"
 grep -Fq '/openbox-lite/dualweb-openbox-lite-nav.js' "$OPENBOX_LITE_ROOT/index.html"
+test -z "$(grep -Eo '(src|href)="\./openbox-lite/assets/[^"]+"' "$OPENBOX_LITE_ROOT/index.html" || true)"
+grep -Eq '(src|href)="/openbox-lite/assets/[^"]+"' "$OPENBOX_LITE_ROOT/index.html"
+while IFS= read -r asset; do
+  asset_path="${asset#\"/openbox-lite/}"
+  if [[ ! -s "$OPENBOX_LITE_ROOT/$asset_path" ]]; then
+    echo "::error::Open-Box lite asset referenced by index.html is missing: $asset_path"
+    exit 1
+  fi
+done < <(grep -Eo '(src|href)="/openbox-lite/assets/[^"]+"' "$OPENBOX_LITE_ROOT/index.html" | sed -E 's/^(src|href)="/"/; s/"$//')
 grep -Fq 'document.querySelectorAll(".home-page, .sidebar, #app, #app-content")' "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.js"
 grep -Fq 'el.classList.remove(HIDDEN)' "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.js"
 grep -Fq 'item.classList.add(HIDDEN)' "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.js"
