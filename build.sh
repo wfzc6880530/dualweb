@@ -141,7 +141,7 @@ for path in root.rglob("*"):
         content = path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         continue
-    updated = content.replace("/api/", "/openbox-lite/api/").replace("/assets/", "/openbox-lite/assets/")
+    # The upstream bundle may already include /openbox-lite/ in asset URLs.\n    # Rewrite only root-level /api/ and /assets/ paths, avoiding a duplicated prefix.\n    import re\n    updated = re.sub(r"(?<!openbox-lite)/api/", "/openbox-lite/api/", content)\n    updated = re.sub(r"(?<!openbox-lite)/assets/", "/openbox-lite/assets/", updated)
     if path == index:
         if "</head>" not in updated or "</body>" not in updated:
             raise SystemExit("ERROR: Open-Box index.html does not contain expected head/body closing tags")
