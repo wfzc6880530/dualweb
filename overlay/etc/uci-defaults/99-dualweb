@@ -3,6 +3,62 @@
 uci -q set network.lan.proto='static'
 uci -q set network.lan.ipaddr='192.168.5.254'
 uci -q set network.lan.netmask='255.255.255.0'
+
+# Ensure a WAN interface exists on generic x86/64 ImageBuilder images.
+# Do not assume eth1 blindly: choose an unassigned physical Ethernet device,
+# preferring eth1, and never take a device already used by LAN/another interface.
+if ! uci -q get network.wan >/dev/null 2>&1; then
+    WAN_DEV=""
+    LAN_DEV="$(uci -q get network.lan.device 2>/dev/null || true)"
+    LAN_PORTS=""
+
+    # Find ports belonging to the LAN bridge (when LAN uses a bridge device).
+    for section in $(uci show network 2>/dev/null | sed -n "s/^\(network\.[^=]*\)=device$/\1/p"); do
+        section_name="$(uci -q get "$section.name" 2>/dev/null || true)"
+        if [ -n "$LAN_DEV" ] && [ "$section_name" = "$LAN_DEV" ]; then
+            LAN_PORTS="$(uci -q get "$section.ports" 2>/dev/null | tr ' ' '\n')"
+            break
+        fi
+    done
+
+    for candidate in eth1 $(ls /sys/class/net 2>/dev/null | sort); do
+        [ -n "$candidate" ] || continue
+        [ -z "$WAN_DEV" ] || break
+
+        case "$candidate" in
+            lo|br*|bond*|wlan*|phy*|docker*|veth*|tun*|tap*|wg*|pppoe*|sit*|ip6tnl*|gre*|dummy*)
+                continue
+                ;;
+        esac
+
+        # Only consider physical Ethernet interfaces exposed by the kernel.
+        [ -e "/sys/class/net/$candidate/device" ] || continue
+        [ "$(cat "/sys/class/net/$candidate/type" 2>/dev/null)" = "1" ] || continue
+        [ "$candidate" != "$LAN_DEV" ] || continue
+
+        case " $LAN_PORTS " in
+            *" $candidate "*) continue ;;
+        esac
+
+        # Do not steal a device already assigned as an interface device or bridge port.
+        if uci show network 2>/dev/null             | grep -E "\\.device=|\\.ports="             | grep -Fq "$candidate"; then
+            continue
+        fi
+
+        WAN_DEV="$candidate"
+    done
+
+    if [ -n "$WAN_DEV" ]; then
+        uci -q set network.wan='interface'
+        uci -q set "network.wan.device=$WAN_DEV"
+        uci -q set network.wan.proto='dhcp'
+        uci -q set network.wan.metric='10'
+        logger -t dualweb-firstboot "Created missing DHCP WAN interface on $WAN_DEV"
+    else
+        logger -t dualweb-firstboot "WARNING: WAN config missing; no unassigned physical Ethernet device found. LAN config was left unchanged."
+    fi
+fi
+
 uci -q commit network
 uci -q delete uhttpd.main.listen_http
 uci add_list uhttpd.main.listen_http='0.0.0.0:8080'
