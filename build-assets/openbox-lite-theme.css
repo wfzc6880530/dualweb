@@ -1,0 +1,6 @@
+/* Hide the upstream promotional bar only in the isolated port-80 Open-Box lite UI.
+ * The full Open-Box frontend under /opt/open-box (port 3036) is not modified.
+ */
+#app .ctrls-bar:has(a[href*="blog.angeworld.cc/market"]):has(a[href*="ai.superdoor.top"]):has(a[href*="ai.opendoor.sbs"]) {
+  display: none !important;
+}
