@@ -5,5 +5,6 @@ firewall4 nftables kmod-nft-tproxy kmod-nft-queue kmod-nft-nat kmod-tun kmod-vet
 htop luci-i18n-base-zh-cn luci-app-attendedsysupgrade luci-app-nps \
 ttyd luci-app-ttyd vlmcsd luci-app-vlmcsd \
 nps npc \
+nps npc \
 mihomo-meta nikki luci-app-nikki luci-i18n-nikki-zh-cn \
 luci-app-passwall luci-i18n-passwall-zh-cn luci-app-openclash
