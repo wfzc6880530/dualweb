@@ -1,15 +1,19 @@
 #!/bin/sh
-# First-boot setup: preserve router LAN defaults and move LuCI to 8080.
+# First-boot setup: default LAN address 192.168.5.254 and LuCI on port 8080.
+uci -q set network.lan.proto='static'
+uci -q set network.lan.ipaddr='192.168.5.254'
+uci -q set network.lan.netmask='255.255.255.0'
+uci -q commit network
 uci -q delete uhttpd.main.listen_http
 uci add_list uhttpd.main.listen_http='0.0.0.0:8080'
 uci add_list uhttpd.main.listen_http='[::]:8080'
 uci commit uhttpd
 
-# Prefer Argon when installed; keep Vantage fallback if Argon is unavailable.
-if [ -d /www/luci-static/argon ]; then
-    uci -q set luci.main.mediaurlbase='/luci-static/argon'
-elif [ -d /www/luci-static/vantage ]; then
+# Vantage is the required LuCI theme. Bootstrap is a temporary fallback until the signed Vantage package is installed.
+if [ -d /www/luci-static/vantage ]; then
     uci -q set luci.main.mediaurlbase='/luci-static/vantage'
+else
+    uci -q set luci.main.mediaurlbase='/luci-static/bootstrap'
 fi
 uci -q commit luci
 
