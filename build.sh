@@ -143,8 +143,8 @@ for path in root.rglob("*"):
         continue
     # Rewrite root-relative paths without duplicating the mount prefix.
     import re
-    updated = re.sub(r"(?<!openbox-lite)/api/", "/openbox-lite/api/", content)
-    updated = re.sub(r"(?<!openbox-lite)/assets/", "/openbox-lite/assets/", updated)
+    updated = re.sub(r"(?<!/openbox-lite)/api/", "/openbox-lite/api/", content)
+    updated = re.sub(r"(?<!/openbox-lite)/assets/", "/openbox-lite/assets/", updated)
     if path == index:
         if "</head>" not in updated or "</body>" not in updated:
             raise SystemExit("ERROR: Open-Box index.html does not contain expected head/body closing tags")
