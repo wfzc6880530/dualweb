@@ -7,8 +7,8 @@
 
   function textOf(el) {
     return (el.innerText || el.textContent || el.getAttribute("aria-label") || el.getAttribute("title") || "")
-      .replace(/\\s+/g, " ")
-      .replace(/[（(]\\d+[）)]/g, "")
+      .replace(/\s+/g, " ")
+      .replace(/[（(]\d+[）)]/g, "")
       .trim();
   }
 
