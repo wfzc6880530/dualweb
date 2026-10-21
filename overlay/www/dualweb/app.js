@@ -18,8 +18,24 @@ function showWebSection(which){
  $('showZashboard').classList.toggle('primary',zash);
  $('showOpenBox').classList.toggle('primary',openbox);
  if(zash){const frame=$('zashboardFrame');if(!frame.dataset.loaded){const port=location.port||(location.protocol==='https:'?'443':'80');const query='hostname='+encodeURIComponent(location.hostname)+'&port='+encodeURIComponent(port)+'&secondaryPath='+encodeURIComponent('/clash');frame.src='/zashboard/#/setup?'+query;frame.dataset.loaded='1';}}
- if(openbox){const frame=$('openBoxFrame');if(!frame.dataset.loaded){frame.src='/openbox-lite/';frame.dataset.loaded='1';}}
+ if(openbox){
+  const frame=$('openBoxFrame');
+  if(!frame.dataset.loaded){frame.src='/openbox-lite/';frame.dataset.loaded='1';}
+  if(!$('openBoxPort').dataset.loaded){loadOpenBoxPort();$('openBoxPort').dataset.loaded='1';}
+ }
 }
+async function loadOpenBoxPort(){
+ try{const d=await api('openbox/port');$('openBoxPort').value=String(d.port||3036);msg('openBoxPortMsg','当前后端端口：'+(d.port||3036));}
+ catch(e){msg('openBoxPortMsg','读取端口失败：'+e.message,true)}
+}
+$('saveOpenBoxPort').addEventListener('click',async()=>{
+ const raw=$('openBoxPort').value.trim(),port=Number(raw);
+ if(!/^\d+$/.test(raw)||!Number.isInteger(port)||port<1||port>65535){msg('openBoxPortMsg','请输入 1–65535 之间的有效端口',true);return;}
+ const b=$('saveOpenBoxPort');b.disabled=true;b.textContent='保存中…';
+ try{const d=await api('openbox/port',{method:'POST',body:JSON.stringify({port})});msg('openBoxPortMsg','已保存，反向代理已切换到本机端口 '+d.port+'。');toast('Open-Box 后端端口已更新');}
+ catch(e){msg('openBoxPortMsg','保存失败：'+e.message,true)}
+ finally{b.disabled=false;b.textContent='保存端口'}
+});
 $('showRouter').addEventListener('click',()=>showWebSection('router'));
 $('showZashboard').addEventListener('click',()=>showWebSection('zashboard'));
 $('showOpenBox').addEventListener('click',()=>showWebSection('openbox'));
