@@ -201,7 +201,7 @@ cat > "$ROOT/overlay/etc/uci-defaults/98-dualweb-luci-password" <<'LUCI_PASSWORD
 #!/bin/sh
 if [ -s /etc/dualweb/luci-root-password ]; then
     _dualweb_password="$(cat /etc/dualweb/luci-root-password)"
-    printf 'root:%s\\n' "$_dualweb_password" | chpasswd
+    printf 'root:%s\n' "$_dualweb_password" | chpasswd
     unset _dualweb_password
     rm -f /etc/dualweb/luci-root-password
 fi
