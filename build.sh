@@ -27,6 +27,73 @@ mkdir -p "$WORK/imagebuilder"
 tar --zstd -xf "$WORK/$IB" -C "$WORK/imagebuilder" --strip-components=1
 IBDIR="$WORK/imagebuilder"
 
+# OpenClash is a release APK, not an ImmortalWrt base-feed package. Pin and verify
+# the tested release so the UI is installed into the image instead of downloaded later.
+OPENCLASH_VERSION="v0.48.002"
+OPENCLASH_APK="luci-app-openclash-0.48.002.apk"
+OPENCLASH_URL="https://github.com/vernesong/OpenClash/releases/download/${OPENCLASH_VERSION}/${OPENCLASH_APK}"
+OPENCLASH_SHA256="f7ebbd43f9be15c5e6df26e5d0c03d50d0bb8f7fa4cc0d2c2bf048b08c0b155b"
+mkdir -p "$IBDIR/packages"
+if [[ ! -s "$WORK/$OPENCLASH_APK" ]]; then
+  echo "Downloading OpenClash ${OPENCLASH_VERSION}: $OPENCLASH_URL"
+  curl -fL --retry 5 --retry-delay 3 --connect-timeout 30 "$OPENCLASH_URL" -o "$WORK/$OPENCLASH_APK"
+fi
+printf '%s  %s\n' "$OPENCLASH_SHA256" "$WORK/$OPENCLASH_APK" | sha256sum -c -
+cp -f "$WORK/$OPENCLASH_APK" "$IBDIR/packages/$OPENCLASH_APK"
+echo "OpenClash package staged: $OPENCLASH_APK"
+
+# Preinstall the OpenClash Meta-compatible Clash core. OpenClash expects this
+# binary at /etc/openclash/core/clash_meta; the x86-64 v1 build maximizes CPU compatibility.
+OPENCLASH_CORE_VERSION="v1.19.32"
+OPENCLASH_CORE_ARCHIVE="mihomo-linux-amd64-v1-${OPENCLASH_CORE_VERSION}.gz"
+OPENCLASH_CORE_URL="https://github.com/MetaCubeX/mihomo/releases/download/${OPENCLASH_CORE_VERSION}/${OPENCLASH_CORE_ARCHIVE}"
+OPENCLASH_CORE_SHA256="306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc"
+if [[ ! -s "$WORK/$OPENCLASH_CORE_ARCHIVE" ]]; then
+  echo "Downloading OpenClash core ${OPENCLASH_CORE_VERSION}: $OPENCLASH_CORE_URL"
+  curl -fL --retry 5 --retry-delay 3 --connect-timeout 30 "$OPENCLASH_CORE_URL" -o "$WORK/$OPENCLASH_CORE_ARCHIVE"
+fi
+printf '%s  %s\n' "$OPENCLASH_CORE_SHA256" "$WORK/$OPENCLASH_CORE_ARCHIVE" | sha256sum -c -
+gzip -t "$WORK/$OPENCLASH_CORE_ARCHIVE"
+mkdir -p "$ROOT/overlay/etc/openclash/core"
+gzip -dc "$WORK/$OPENCLASH_CORE_ARCHIVE" > "$ROOT/overlay/etc/openclash/core/clash_meta"
+chmod 0755 "$ROOT/overlay/etc/openclash/core/clash_meta"
+if ! "$ROOT/overlay/etc/openclash/core/clash_meta" -v >/dev/null 2>&1; then
+  echo "::error::The prebuilt OpenClash core is not executable on the build host." >&2
+  exit 1
+fi
+echo "OpenClash core staged: $("$ROOT/overlay/etc/openclash/core/clash_meta" -v 2>&1 | head -n 1)"
+
+# Vantage is optional by request: try to bake in the verified release APKs.
+# If download, checksum, dependency resolution, or image installation fails, warn
+# and continue with Bootstrap rather than failing the whole firmware build.
+VANTAGE_VERSION="v1.0.9"
+VANTAGE_BASE="https://github.com/anothaDev/luci-theme-vantage/releases/download/${VANTAGE_VERSION}"
+VANTAGE_OK=1
+VANTAGE_PACKAGES="luci-theme-vantage luci-app-vantage luci-i18n-vantage-zh-cn"
+while IFS='|' read -r asset expected_sha; do
+  [[ -n "$asset" ]] || continue
+  dest="$IBDIR/packages/$asset"
+  if curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 "$VANTAGE_BASE/$asset" -o "$dest" \
+      && printf '%s  %s\n' "$expected_sha" "$dest" | sha256sum -c -; then
+    echo "Vantage package verified: $asset"
+  else
+    VANTAGE_OK=0
+    break
+  fi
+done <<'VANTAGE_ASSETS'
+luci-theme-vantage-1.0.9-r1.apk|d70ab2b4479b78bcf7e45ad70ddb251f4b57a66f711a7d58fae74c8ed8bff686
+luci-app-vantage-1.0.9-r1.apk|b14853cc2f66b55982d63a14b6238552edfec6bdd4cbbf8278594be85ecd22e8
+luci-i18n-vantage-zh-cn-1.0.9-r1.apk|cd1453cfd65e1a8fd4cb75023b0937cca4392f2077d88690a513da88834f6c07
+VANTAGE_ASSETS
+if [[ "$VANTAGE_OK" != "1" ]]; then
+  rm -f "$IBDIR/packages/luci-theme-vantage-"*.apk \
+        "$IBDIR/packages/luci-app-vantage-"*.apk \
+        "$IBDIR/packages/luci-i18n-vantage-zh-cn-"*.apk
+  echo "::warning::Vantage APK download/checksum failed; continuing with Bootstrap as the LuCI theme."
+else
+  echo "Vantage ${VANTAGE_VERSION} packages are staged; installation will be verified by ImageBuilder."
+fi
+
 if ! command -v go >/dev/null 2>&1; then
   echo "Go is required to compile the local API. Install Go 1.22+ and retry." >&2
   exit 1
@@ -236,21 +303,51 @@ cp -a "$(dirname "$ZASHBOARD_INDEX")/." "$ROOT/overlay/www/dualweb/zashboard/"
 test -s "$ROOT/overlay/www/dualweb/zashboard/index.html"
 echo "Zashboard static files: $(du -sh "$ROOT/overlay/www/dualweb/zashboard" | cut -f1)"
 
-# Inject the LuCI root password from a GitHub Actions secret, never from repository source.
-if [[ -z "${LUCI_ROOT_PASSWORD:-}" ]]; then
+# Inject a fixed LuCI root password from GitHub Actions Secret.
+# Only a SHA-512 crypt hash is embedded in the image; never place the plaintext secret in rootfs.
+if [[ -z "$LUCI_ROOT_PASSWORD" ]]; then
   echo "::error::Configure the repository Actions secret LUCI_ROOT_PASSWORD before building."
   exit 1
 fi
+if [[ "$LUCI_ROOT_PASSWORD" == *$'\n'* || "$LUCI_ROOT_PASSWORD" == *:* ]]; then
+  echo "::error::LUCI_ROOT_PASSWORD must not contain a newline or colon." >&2
+  exit 1
+fi
+if ! command -v openssl >/dev/null 2>&1; then
+  echo "::error::OpenSSL is required to hash LUCI_ROOT_PASSWORD." >&2
+  exit 1
+fi
+PASSWORD_SALT="$(openssl rand -hex 8)"
+PASSWORD_HASH="$(printf '%s' "$LUCI_ROOT_PASSWORD" | openssl passwd -6 -salt "$PASSWORD_SALT" -stdin)"
+unset LUCI_ROOT_PASSWORD PASSWORD_SALT
+if [[ "$PASSWORD_HASH" != '$6$'* ]]; then
+  echo "::error::Failed to generate a SHA-512 crypt hash for the LuCI password." >&2
+  exit 1
+fi
 mkdir -p "$ROOT/overlay/etc/dualweb" "$ROOT/overlay/etc/uci-defaults"
-printf '%s' "$LUCI_ROOT_PASSWORD" > "$ROOT/overlay/etc/dualweb/luci-root-password"
-chmod 0600 "$ROOT/overlay/etc/dualweb/luci-root-password"
+printf '%s' "$PASSWORD_HASH" > "$ROOT/overlay/etc/dualweb/luci-root-password-hash"
+chmod 0600 "$ROOT/overlay/etc/dualweb/luci-root-password-hash"
+unset PASSWORD_HASH
 cat > "$ROOT/overlay/etc/uci-defaults/98-dualweb-luci-password" <<'LUCI_PASSWORD_DEFAULTS'
 #!/bin/sh
-if [ -s /etc/dualweb/luci-root-password ]; then
-    _dualweb_password="$(cat /etc/dualweb/luci-root-password)"
-    printf 'root:%s\n' "$_dualweb_password" | chpasswd
-    unset _dualweb_password
-    rm -f /etc/dualweb/luci-root-password
+set -eu
+HASH_FILE=/etc/dualweb/luci-root-password-hash
+if [ -s "$HASH_FILE" ]; then
+    _dualweb_hash="$(cat "$HASH_FILE")"
+    case "$_dualweb_hash" in
+        '$6$'*) ;;
+        *) logger -t dualweb "Invalid root password hash; refusing to alter /etc/shadow."; exit 1 ;;
+    esac
+    awk -F: -v hash="$_dualweb_hash" 'BEGIN { OFS=":" } $1 == "root" { $2 = hash; found = 1 } { print } END { if (!found) exit 1 }' /etc/shadow > /etc/shadow.dualweb
+    chmod 0600 /etc/shadow.dualweb
+    mv /etc/shadow.dualweb /etc/shadow
+    if awk -F: '$1 == "root" && $2 != "" && $2 != "!" && $2 != "*" { ok = 1 } END { exit !ok }' /etc/shadow; then
+        rm -f "$HASH_FILE"
+        logger -t dualweb "LuCI root password initialized successfully."
+    else
+        logger -t dualweb "Root password initialization verification failed."
+        exit 1
+    fi
 fi
 exit 0
 LUCI_PASSWORD_DEFAULTS
@@ -267,7 +364,8 @@ for required in \
   etc/dualweb/openbox-lite-backend.conf \
   etc/dualweb/openbox-lite-backend-port \
   etc/nginx/conf.d/dualweb.conf \
-  etc/init.d/openbox-panel; do
+  etc/init.d/openbox-panel \
+  etc/openclash/core/clash_meta; do
   if [[ ! -s "$IBDIR/files/$required" ]]; then
     echo "::error::Open-Box integration file missing from ImageBuilder FILES: $required"
     exit 1
@@ -275,11 +373,52 @@ for required in \
 done
 echo "[OPENBOX-LITE-CHECK 5/5] Open-Box lite frontend, backend include, Nginx route and original service are staged."
 
-PACKAGES="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | xargs)"
+PACKAGES_BASE="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | xargs)"
+PACKAGES="$PACKAGES_BASE"
+if [[ "$VANTAGE_OK" == "1" ]]; then
+  PACKAGES="$PACKAGES $VANTAGE_PACKAGES"
+fi
 echo "========== Verify package manifest =========="
-make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
+if ! make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"; then
+  if [[ "$VANTAGE_OK" == "1" ]]; then
+    echo "::warning::Vantage packages failed ImageBuilder dependency resolution; retrying without Vantage."
+    VANTAGE_OK=0
+    PACKAGES="$PACKAGES_BASE"
+    rm -f "$IBDIR/packages/luci-theme-vantage-"*.apk \
+          "$IBDIR/packages/luci-app-vantage-"*.apk \
+          "$IBDIR/packages/luci-i18n-vantage-zh-cn-"*.apk
+    make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
+  else
+    exit 1
+  fi
+fi
+if [[ "$VANTAGE_OK" == "1" ]]; then
+  mkdir -p "$IBDIR/files/etc/dualweb"
+  : > "$IBDIR/files/etc/dualweb/.vantage-installed"
+  chmod 0644 "$IBDIR/files/etc/dualweb/.vantage-installed"
+fi
 echo "========== Build firmware =========="
-make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT" ROOTFS_PARTSIZE=2048
+if ! make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT" ROOTFS_PARTSIZE=2048; then
+  if [[ "$VANTAGE_OK" == "1" ]]; then
+    echo "::warning::ImageBuilder could not install Vantage; retrying firmware build without Vantage."
+    VANTAGE_OK=0
+    PACKAGES="$PACKAGES_BASE"
+    rm -f "$IBDIR/files/etc/dualweb/.vantage-installed"
+    find "$OUT" -maxdepth 1 -type f -delete
+    make -C "$IBDIR" clean || true
+    make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
+    make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT" ROOTFS_PARTSIZE=2048
+  else
+    exit 1
+  fi
+fi
+if [[ "$VANTAGE_OK" == "1" ]]; then
+  echo "Vantage status: INSTALLED in the firmware."
+else
+  echo "::warning::Vantage status: MISSING; Bootstrap remains the default LuCI theme."
+fi
+test -s "$IBDIR/files/etc/openclash/core/clash_meta"
+echo "OpenClash core status: PREINSTALLED ($("$IBDIR/files/etc/openclash/core/clash_meta" -v 2>&1 | head -n 1))"
 # Keep exactly one distributable firmware file: generic squashfs combined image.
 IMAGE="$(find "$OUT" -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
 if [[ -z "$IMAGE" ]]; then
