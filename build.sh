@@ -191,6 +191,7 @@ mkdir -p "$OPENBOX_LITE_ROOT"
 cp -a "$OPENBOX_WEB_ROOT/." "$OPENBOX_LITE_ROOT/"
 cp "$ROOT/build-assets/openbox-lite-nav.js" "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.js"
 cp "$ROOT/build-assets/openbox-lite-nav.css" "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.css"
+cp "$ROOT/build-assets/openbox-lite-theme.css" "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-theme.css"
 
 # Rebase absolute API/static-asset paths to this isolated mount point, then
 # inject the small navigation filter. Only the copied frontend is modified.
@@ -220,7 +221,7 @@ for path in root.rglob("*"):
             raise SystemExit("ERROR: Open-Box index.html does not contain expected head/body closing tags")
         updated = updated.replace(
             "</head>",
-            '<link rel="stylesheet" href="/openbox-lite/dualweb-openbox-lite-nav.css"></head>',
+            '<link rel="stylesheet" href="/openbox-lite/dualweb-openbox-lite-nav.css"><link rel="stylesheet" href="/openbox-lite/dualweb-openbox-lite-theme.css"></head>',
             1,
         )
         updated = updated.replace(
@@ -239,7 +240,10 @@ test -s "$OPENBOX_LITE_ROOT/index.html"
 # must protect structural containers and the copied index must load the injected files.
 test -s "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.js"
 test -s "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-nav.css"
+test -s "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-theme.css"
 grep -Fq '/openbox-lite/dualweb-openbox-lite-nav.css' "$OPENBOX_LITE_ROOT/index.html"
+grep -Fq '/openbox-lite/dualweb-openbox-lite-theme.css' "$OPENBOX_LITE_ROOT/index.html"
+grep -Fq '.ctrls-bar:has(a[href*="blog.angeworld.cc/market"])' "$OPENBOX_LITE_ROOT/dualweb-openbox-lite-theme.css"
 grep -Fq '/openbox-lite/dualweb-openbox-lite-nav.js' "$OPENBOX_LITE_ROOT/index.html"
 test -z "$(grep -Eo '(src|href)="\./openbox-lite/assets/[^"]+"' "$OPENBOX_LITE_ROOT/index.html" || true)"
 grep -Eq '(src|href)="/openbox-lite/assets/[^"]+"' "$OPENBOX_LITE_ROOT/index.html"
