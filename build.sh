@@ -189,6 +189,26 @@ cp -a "$(dirname "$ZASHBOARD_INDEX")/." "$ROOT/overlay/www/dualweb/zashboard/"
 test -s "$ROOT/overlay/www/dualweb/zashboard/index.html"
 echo "Zashboard static files: $(du -sh "$ROOT/overlay/www/dualweb/zashboard" | cut -f1)"
 
+# Inject the LuCI root password from a GitHub Actions secret, never from repository source.
+if [[ -z "${LUCI_ROOT_PASSWORD:-}" ]]; then
+  echo "::error::Configure the repository Actions secret LUCI_ROOT_PASSWORD before building."
+  exit 1
+fi
+mkdir -p "$ROOT/overlay/etc/dualweb" "$ROOT/overlay/etc/uci-defaults"
+printf '%s' "$LUCI_ROOT_PASSWORD" > "$ROOT/overlay/etc/dualweb/luci-root-password"
+chmod 0600 "$ROOT/overlay/etc/dualweb/luci-root-password"
+cat > "$ROOT/overlay/etc/uci-defaults/98-dualweb-luci-password" <<'LUCI_PASSWORD_DEFAULTS'
+#!/bin/sh
+if [ -s /etc/dualweb/luci-root-password ]; then
+    _dualweb_password="$(cat /etc/dualweb/luci-root-password)"
+    printf 'root:%s\\n' "$_dualweb_password" | chpasswd
+    unset _dualweb_password
+    rm -f /etc/dualweb/luci-root-password
+fi
+exit 0
+LUCI_PASSWORD_DEFAULTS
+chmod 0755 "$ROOT/overlay/etc/uci-defaults/98-dualweb-luci-password"
+
 mkdir -p "$IBDIR/files"
 cp -a "$ROOT/overlay/." "$IBDIR/files/"
 PACKAGES="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | xargs)"
