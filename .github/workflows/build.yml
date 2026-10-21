@@ -17,6 +17,7 @@ on:
     paths:
       - '.github/workflows/**'
       - 'overlay/**'
+      - 'build-assets/**'
       - 'src/**'
       - 'build.sh'
       - 'packages.txt'
@@ -31,6 +32,7 @@ on:
     paths:
       - '.github/workflows/**'
       - 'overlay/**'
+      - 'build-assets/**'
       - 'src/**'
       - 'build.sh'
       - 'packages.txt'
