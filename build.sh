@@ -183,7 +183,22 @@ NGINX_DUALWEB_CONF="$ROOT/overlay/etc/nginx/conf.d/dualweb.conf"
 test -s "$OPENBOX_BACKEND_CONF"
 test -s "$OPENBOX_BACKEND_PORT"
 grep -Fq 'include /etc/dualweb/openbox-lite-backend.conf;' "$NGINX_DUALWEB_CONF"
-grep -Eq '^set \\$openbox_backend http://127\\.0\\.0\\.1:3036;
+grep -Eq '^set \$openbox_backend http://127\.0\.0\.1:3036;$' "$OPENBOX_BACKEND_CONF"
+grep -qx '3036' "$OPENBOX_BACKEND_PORT"
+echo "[OPENBOX-LITE-CHECK 2/5] Backend include and default port 3036 are present."
+
+# [OPENBOX-LITE-CHECK 3/5] Ensure the lite API is rebased to its own URL prefix.
+grep -Fq 'location ^~ /openbox-lite/api/' "$NGINX_DUALWEB_CONF"
+grep -Fq 'rewrite ^/openbox-lite/api/(.*)$ /api/$1 break;' "$NGINX_DUALWEB_CONF"
+grep -Fq 'location ^~ /openbox-lite/' "$NGINX_DUALWEB_CONF"
+
+# [OPENBOX-LITE-CHECK 4/5] Confirm the original 3036 frontend is not overwritten.
+test -s "$ROOT/overlay/etc/init.d/openbox-panel"
+test -s "$ROOT/overlay/etc/init.d/openbox"
+test -s "$ROOT/overlay/opt/open-box/openwrt/initd/openbox-panel"
+test -s "$ROOT/overlay/opt/open-box/openwrt/initd/openbox"
+echo "[OPENBOX-LITE-CHECK 4/5] Original Open-Box service files and lite frontend are separate."
+echo "Open-Box lite frontend copied to $OPENBOX_LITE_ROOT; original port 3036 files unchanged."
 
 # Fetch the official Zashboard static release at build time and bake it into port 80.
 # The dashboard remains independently updateable on the running router.
@@ -248,85 +263,6 @@ for required in \
 done
 echo "[OPENBOX-LITE-CHECK 5/5] Open-Box lite frontend, backend include, Nginx route and original service are staged."
 
-PACKAGES="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | xargs)"
-echo "========== Verify package manifest =========="
-make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
-echo "========== Build firmware =========="
-make -C "$IBDIR" image PROFILE=generic PACKAGES="$PACKAGES" FILES="$IBDIR/files" BIN_DIR="$OUT" ROOTFS_PARTSIZE=2048
-# Keep exactly one distributable firmware file: generic squashfs combined image.
-IMAGE="$(find "$OUT" -maxdepth 1 -type f -name '*-generic-squashfs-combined.img.gz' -print -quit)"
-if [[ -z "$IMAGE" ]]; then
-  echo "ERROR: ImageBuilder did not produce *-generic-squashfs-combined.img.gz" >&2
-  find "$OUT" -maxdepth 1 -type f -printf '%f (%s bytes)\n'
-  exit 1
-fi
-IMAGE_NAME="$(basename "$IMAGE")"
-find "$OUT" -maxdepth 1 -type f ! -name "$IMAGE_NAME" -delete
-test -s "$OUT/$IMAGE_NAME"
-echo "Build complete: $OUT/$IMAGE_NAME"
- "$OPENBOX_BACKEND_CONF"
-grep -qx '3036' "$OPENBOX_BACKEND_PORT"
-echo "[OPENBOX-LITE-CHECK 2/5] Backend include and default port 3036 are present."
-
-# [OPENBOX-LITE-CHECK 3/5] Ensure the lite API is rebased to its own URL prefix.
-grep -Fq 'location ^~ /openbox-lite/api/' "$NGINX_DUALWEB_CONF"
-grep -Fq 'rewrite ^/openbox-lite/api/(.*)$ /api/$1 break;' "$NGINX_DUALWEB_CONF"
-grep -Fq 'location ^~ /openbox-lite/' "$NGINX_DUALWEB_CONF"
-
-# [OPENBOX-LITE-CHECK 4/5] Confirm the original 3036 frontend is not overwritten.
-test -s "$ROOT/overlay/etc/init.d/openbox-panel"
-test -s "$ROOT/overlay/etc/init.d/openbox"
-test -s "$ROOT/overlay/opt/open-box/openwrt/initd/openbox-panel"
-test -s "$ROOT/overlay/opt/open-box/openwrt/initd/openbox"
-echo "[OPENBOX-LITE-CHECK 4/5] Original Open-Box service files and lite frontend are separate."
-echo "Open-Box lite frontend copied to $OPENBOX_LITE_ROOT; original port 3036 files unchanged."
-
-# Fetch the official Zashboard static release at build time and bake it into port 80.
-# The dashboard remains independently updateable on the running router.
-ZASHBOARD_URL="${ZASHBOARD_URL:-https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip}"
-ZASHBOARD_ZIP="$WORK/zashboard-dist.zip"
-ZASHBOARD_DIR="$WORK/zashboard-dist"
-if [[ ! -s "$ZASHBOARD_ZIP" ]]; then
-  echo "Downloading Zashboard: $ZASHBOARD_URL"
-  curl -fL --retry 5 --retry-delay 3 --connect-timeout 30 "$ZASHBOARD_URL" -o "$ZASHBOARD_ZIP"
-fi
-unzip -tq "$ZASHBOARD_ZIP"
-rm -rf "$ZASHBOARD_DIR"
-mkdir -p "$ZASHBOARD_DIR" "$ROOT/overlay/www/dualweb/zashboard"
-unzip -q "$ZASHBOARD_ZIP" -d "$ZASHBOARD_DIR"
-ZASHBOARD_INDEX="$(find "$ZASHBOARD_DIR" -type f -name index.html -print -quit)"
-if [[ -z "$ZASHBOARD_INDEX" ]]; then
-  echo "ERROR: Zashboard release archive has no index.html" >&2
-  exit 1
-fi
-rm -rf "$ROOT/overlay/www/dualweb/zashboard"
-mkdir -p "$ROOT/overlay/www/dualweb/zashboard"
-cp -a "$(dirname "$ZASHBOARD_INDEX")/." "$ROOT/overlay/www/dualweb/zashboard/"
-test -s "$ROOT/overlay/www/dualweb/zashboard/index.html"
-echo "Zashboard static files: $(du -sh "$ROOT/overlay/www/dualweb/zashboard" | cut -f1)"
-
-# Inject the LuCI root password from a GitHub Actions secret, never from repository source.
-if [[ -z "${LUCI_ROOT_PASSWORD:-}" ]]; then
-  echo "::error::Configure the repository Actions secret LUCI_ROOT_PASSWORD before building."
-  exit 1
-fi
-mkdir -p "$ROOT/overlay/etc/dualweb" "$ROOT/overlay/etc/uci-defaults"
-printf '%s' "$LUCI_ROOT_PASSWORD" > "$ROOT/overlay/etc/dualweb/luci-root-password"
-chmod 0600 "$ROOT/overlay/etc/dualweb/luci-root-password"
-cat > "$ROOT/overlay/etc/uci-defaults/98-dualweb-luci-password" <<'LUCI_PASSWORD_DEFAULTS'
-#!/bin/sh
-if [ -s /etc/dualweb/luci-root-password ]; then
-    _dualweb_password="$(cat /etc/dualweb/luci-root-password)"
-    printf 'root:%s\n' "$_dualweb_password" | chpasswd
-    unset _dualweb_password
-    rm -f /etc/dualweb/luci-root-password
-fi
-exit 0
-LUCI_PASSWORD_DEFAULTS
-chmod 0755 "$ROOT/overlay/etc/uci-defaults/98-dualweb-luci-password"
-
-mkdir -p "$IBDIR/files"
-cp -a "$ROOT/overlay/." "$IBDIR/files/"
 PACKAGES="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/packages.txt" | tr '\\' ' ' | xargs)"
 echo "========== Verify package manifest =========="
 make -C "$IBDIR" manifest PROFILE=generic PACKAGES="$PACKAGES"
