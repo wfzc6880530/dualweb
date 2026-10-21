@@ -2,7 +2,8 @@
   "use strict";
 
   const HIDDEN = "dualweb-openbox-lite-hidden";
-  const unwanted = /^(连接|连接数|connections?|logs?|日志|设置|配置|settings?|订阅|subscriptions?|speed|速度|域名穿透)$/i;
+  // [OPENBOX-LITE-NAV] Use an allowlist so unknown upstream menu labels do not leak into the lite UI.
+  const allowed = /^(概览|总览|overview|dashboard|代理|proxy|proxies|规则|rules?)$/i;
   const roots = "nav, aside, [role='navigation'], .sidebar";
 
   function textOf(el) {
@@ -21,7 +22,7 @@
     document.querySelectorAll(roots).forEach(root => {
       root.querySelectorAll("a, button, [role='menuitem']").forEach(el => {
         const label = textOf(el);
-        if (!label || !unwanted.test(label)) return;
+        if (!label || allowed.test(label)) return;
 
         const item = el.closest(
           "li, [role='menuitem'], .ant-menu-item, .el-menu-item, " +
