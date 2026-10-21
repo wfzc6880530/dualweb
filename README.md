@@ -18,3 +18,6 @@
 注意：当前 ImageBuilder 集成的是官方预编译软件包，并非在 GitHub Actions 中从所有软件的源码重新编译。若上游包与目标 ImmortalWrt 版本的依赖不兼容，构建应在 manifest 阶段失败，而不是生成缺少软件的固件。
 
 首页后端监听 `127.0.0.1:9091`，Nginx 将 `/api/` 转发到该端口。
+
+
+构建验证说明：若 `LUCI_ROOT_PASSWORD` 尚未配置，构建会在生成固件前终止。
