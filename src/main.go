@@ -161,6 +161,25 @@ func route(w http.ResponseWriter, r *http.Request) {
 		connectivity(w)
 		return
 	}
+	if r.URL.Path == "/api/openbox/port" && r.Method == "GET" {
+		writeJSON(w, 200, reply{"port": openBoxPort()})
+		return
+	}
+	if r.URL.Path == "/api/openbox/port" && r.Method == "POST" {
+		var x struct {
+			Port int `json:"port"`
+		}
+		if bodyJSON(r, &x) != nil || x.Port < 1 || x.Port > 65535 {
+			fail(w, 400, "端口必须是 1–65535 之间的整数")
+			return
+		}
+		if e := setOpenBoxPort(x.Port); e != nil {
+			fail(w, 500, "更新 Open-Box 后端端口失败："+e.Error())
+			return
+		}
+		writeJSON(w, 200, reply{"ok": true, "port": x.Port})
+		return
+	}
 	if r.URL.Path == "/api/status" && r.Method == "GET" {
 		s, e := status()
 		if e != nil {
@@ -254,6 +273,42 @@ func route(w http.ResponseWriter, r *http.Request) {
 	}
 	fail(w, 404, "接口不存在")
 }
+const openBoxPortFile = "/etc/dualweb/openbox-lite-backend-port"
+const openBoxNginxInclude = "/etc/dualweb/openbox-lite-backend.conf"
+
+func openBoxPort() int {
+	p, err := strconv.Atoi(readFile(openBoxPortFile))
+	if err != nil || p < 1 || p > 65535 {
+		return 3036
+	}
+	return p
+}
+
+func setOpenBoxPort(port int) error {
+	oldPort := openBoxPort()
+	oldConfig := fmt.Sprintf("set $openbox_backend http://127.0.0.1:%d;\n", oldPort)
+	newConfig := fmt.Sprintf("set $openbox_backend http://127.0.0.1:%d;\n", port)
+	if err := writeFile(openBoxNginxInclude, newConfig, 0600); err != nil {
+		return err
+	}
+	if err := writeFile(openBoxPortFile, strconv.Itoa(port)+"\n", 0600); err != nil {
+		_ = writeFile(openBoxNginxInclude, oldConfig, 0600)
+		return err
+	}
+	if out, err := run("nginx", "-t", "-c", "/etc/nginx/uci.conf"); err != nil {
+		_ = writeFile(openBoxNginxInclude, oldConfig, 0600)
+		_ = writeFile(openBoxPortFile, strconv.Itoa(oldPort)+"\n", 0600)
+		return fmt.Errorf("Nginx 配置校验失败：%s", out)
+	}
+	if out, err := run("/etc/init.d/nginx", "reload"); err != nil {
+		_ = writeFile(openBoxNginxInclude, oldConfig, 0600)
+		_ = writeFile(openBoxPortFile, strconv.Itoa(oldPort)+"\n", 0600)
+		_, _ = run("/etc/init.d/nginx", "reload")
+		return fmt.Errorf("Nginx 重载失败：%s", out)
+	}
+	return nil
+}
+
 func validLabel(s string) bool {
 	return s != "" && len(s) <= 160 && !strings.ContainsAny(s, "\r\n\x00")
 }
