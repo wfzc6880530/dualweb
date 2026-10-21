@@ -13,6 +13,7 @@ on:
       - main
       - feature/2026-10-20-dualweb-openbox-zashboard
       - feature/2026-10-20-openbox-lite-nav
+      - feature/2026-10-21-openbox-backend-port
     paths:
       - '.github/workflows/**'
       - 'overlay/**'
@@ -26,6 +27,7 @@ on:
       - main
       - feature/2026-10-20-dualweb-openbox-zashboard
       - feature/2026-10-20-openbox-lite-nav
+      - feature/2026-10-21-openbox-backend-port
     paths:
       - '.github/workflows/**'
       - 'overlay/**'
