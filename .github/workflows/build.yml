@@ -46,6 +46,7 @@ jobs:
 
     env:
       RELEASE: ${{ inputs.release || '25.12.2' }}
+      LUCI_ROOT_PASSWORD: ${{ secrets.LUCI_ROOT_PASSWORD }}
 
     steps:
       - name: Checkout source
