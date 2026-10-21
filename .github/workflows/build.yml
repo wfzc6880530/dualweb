@@ -26,6 +26,7 @@ on:
   push:
     branches:
       - main
+      - test/2026-10-21-functional-b-scheme
       - feature/2026-10-20-dualweb-openbox-zashboard
       - feature/2026-10-20-openbox-lite-nav
       - feature/2026-10-21-openbox-backend-port
@@ -97,6 +98,7 @@ jobs:
 
           chmod +x build.sh
           bash -n build.sh
+          sh -n overlay/etc/uci-defaults/99-dualweb
 
           echo "ImmortalWrt release: ${RELEASE}"
 
